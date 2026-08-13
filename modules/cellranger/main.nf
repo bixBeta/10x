@@ -2,7 +2,12 @@ chemistry       = params.chemistry
 expectCells     = params.expectCells
 forceCells      = params.forceCells
 createBam       = params.createBam
-introns         = params.introns
+introns          = params.introns
+r1length        = params.r1length
+r2length        = params.r2length
+
+// binary: a native install via --crpath, otherwise whatever is on PATH in the container
+crBin           = params.crpath ?: "cellranger"
 
 // Cell Ranger 8 dropped --no-bam in favour of a mandatory --create-bam
 crMajor         = params.crversion.tokenize('.')[0] as Integer
@@ -11,7 +16,8 @@ crMajor         = params.crversion.tokenize('.')[0] as Integer
 process CELLRANGER_COUNT {
 
     tag "$library"
-    label 'process_high'
+
+    // cpus / memory come from --localcores and --localmem, see nextflow.config
 
     publishDir "CELLRANGER/${library}" , mode: "symlink", overwrite: true , pattern: "outs/**"
 
@@ -30,11 +36,12 @@ process CELLRANGER_COUNT {
     script:
 
     def bamArg      = crMajor >= 8 ? "--create-bam=${createBam}" : ( createBam ? "" : "--no-bam" )
+    def r1Arg       = r1length    ? "--r1-length=${r1length}"        : ""
+    def r2Arg       = r2length    ? "--r2-length=${r2length}"        : ""
     def chemArg     = chemistry   ? "--chemistry=${chemistry}"       : ""
     def cellsArg    = expectCells ? "--expect-cells=${expectCells}"  : ""
     def forceArg    = forceCells  ? "--force-cells=${forceCells}"    : ""
     def intronArg   = introns != null ? "--include-introns=${introns}" : ""
-    def memGb       = Math.max( (task.memory.toGiga() as int) - 4, 4 )
 
     """
     # Cell Ranger only accepts bcl2fastq style names, so each input row is
@@ -52,21 +59,22 @@ process CELLRANGER_COUNT {
 
     echo "staged \$lane sequencing run(s) for ${library}"
 
-    cellranger count \
+    ${crBin} count \
         --id=${library} \
+        --localcores=${task.cpus} \
+        --localmem=${task.memory.toGiga()} \
+        ${bamArg} ${r1Arg} ${r2Arg} \
         --transcriptome=${ref} \
         --fastqs=fqs \
         --sample=${library} \
-        --localcores=${task.cpus} \
-        --localmem=${memGb} \
-        ${bamArg} ${chemArg} ${cellsArg} ${forceArg} ${intronArg}
+        ${chemArg} ${cellsArg} ${forceArg} ${intronArg}
 
     # lift outs/ up so publishDir and downstream modules see a stable path
     mv ${library}/outs outs
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        cellranger: \$( cellranger --version 2>&1 | head -1 | sed 's/.*cellranger[- ]//; s/[^0-9.].*\$//' )
+        cellranger: \$( ${crBin} --version 2>&1 | head -1 | sed 's/.*cellranger[- ]//; s/[^0-9.].*\$//' )
     END_VERSIONS
     """
 

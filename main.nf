@@ -17,6 +17,12 @@ params.expectCells      = null
 params.forceCells       = null
 params.createBam        = false
 params.introns          = null
+params.r1length         = 28
+params.r2length         = null
+
+// --crversion, --container, --crpath, --maxforks, --localcores and --localmem
+// are declared in nextflow.config, since process directives are resolved before
+// this script is parsed.
 
 // Command Line Channels     ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~
 
@@ -117,8 +123,24 @@ Args:
     * --forceCells     : Force pipeline to use this number of cells
     * --createBam      : Emit the position-sorted BAM; default <false>
     * --introns        : Set true/false to override --include-introns; default <null> ( tool default )
-    * --crversion      : Cell Ranger version to run, selects the container tag; default <9.0.1>
+    * --r1length       : Trim R1 to this length; default <28>. Pass 0 to omit the flag.
+    * --r2length       : Trim R2 to this length; default <null>
+
+  Runtime / resources:
+    * --localcores     : cellranger --localcores, also the cpus reserved; default <32>
+    * --localmem       : cellranger --localmem in GB, also the memory reserved; default <180>
+    * --maxforks       : how many processes run at once, pipeline wide; default <2>
+    * --crversion      : Cell Ranger version, selects the container tag; default <9.0.1>
+    * --crpath         : Run a native install instead of the container
+                         e.g. --crpath /programs/cellranger-9.0.1/cellranger
     * --container      : Full container override e.g. a local .sif path
+
+  The command this builds per library:
+
+    <crpath|cellranger> count --id=<library> \\
+      --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam> --r1-length=<r1length> \\
+      --transcriptome=<ref> \\
+      --fastqs=<staged fastqs for this library>
 
 """
 
@@ -136,24 +158,28 @@ ref          : ${params.ref}
 chemistry    : ${params.chemistry}
 expectCells  : ${params.expectCells}
 createBam    : ${params.createBam}
+r1length     : ${params.r1length}
+localcores   : ${params.localcores}
+localmem     : ${params.localmem}
+maxforks     : ${params.maxforks}
 crversion    : ${params.crversion}
-container    : ${params.container ?: "docker://ghcr.io/bixbeta/cellranger:" + params.crversion}
+cellranger   : ${params.crpath ?: (params.container ?: "docker://ghcr.io/bixbeta/cellranger:" + params.crversion)}
 """
 
-// 10x reference MAP
+// 10x reference MAP  ( /local/workdir/10x_analysis/REFS )
 refDir = [
-GRCh38              :"/workdir/genomes/Homo_sapiens/hg38/10x/refdata-gex-GRCh38-2024-A",
-GRCm39              :"/workdir/genomes/Mus_musculus/GRCm39/10x/refdata-gex-GRCm39-2024-A",
-GRCh38_GRCm39       :"/workdir/genomes/Multi/10x/refdata-gex-GRCh38_and_GRCm39-2024-A"]
+CanFam3_1           :"/local/workdir/10x_analysis/REFS/Canine/CanFam3_1",
+GRCh38              :"/local/workdir/10x_analysis/REFS/Human/GRCh38",
+GRCm39              :"/local/workdir/10x_analysis/REFS/Mouse/GRCm39"]
 
 // ATAC / ARC references, wired up when those modes land
 refDirAtac = [
-GRCh38              :"/workdir/genomes/Homo_sapiens/hg38/10x/refdata-cellranger-atac-GRCh38-2020-A-2.0.0",
-GRCm39              :"/workdir/genomes/Mus_musculus/GRCm39/10x/refdata-cellranger-atac-mm10-2020-A-2.0.0"]
+GRCh38              :"/local/workdir/10x_analysis/REFS/ATAC/Human/GRCh38",
+GRCm39              :"/local/workdir/10x_analysis/REFS/ATAC/Mouse/GRCm39"]
 
 refDirArc = [
-GRCh38              :"/workdir/genomes/Homo_sapiens/hg38/10x/refdata-cellranger-arc-GRCh38-2020-A-2.0.0",
-GRCm39              :"/workdir/genomes/Mus_musculus/GRCm39/10x/refdata-cellranger-arc-mm10-2020-A-2.0.0"]
+GRCh38              :"/local/workdir/10x_analysis/REFS/ARC/Human/GRCh38",
+GRCm39              :"/local/workdir/10x_analysis/REFS/ARC/Mouse/GRCm39"]
 
 
 if( params.listRefs ) {

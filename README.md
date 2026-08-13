@@ -112,10 +112,44 @@ library and a standalone scATAC library from the same tissue are *not* multiome
 | `--expectCells` / `--forceCells` | — | |
 | `--createBam` | `false` | |
 | `--introns` | tool default | |
+| `--r1length` | `28` | `--r1-length`; pass `0` to omit |
+| `--r2length` | — | `--r2-length` |
+| `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
+| `--localmem` | `180` | `--localmem` in GB **and** the memory reserved |
+| `--maxforks` | `2` | processes running at once, pipeline wide |
 | `--crversion` | `9.0.1` | Cell Ranger version, selects the container tag |
+| `--crpath` | — | run a native install, e.g. `/programs/cellranger-9.0.1/cellranger` |
 | `--container` | — | full override, e.g. a local `.sif` |
 
 Outputs land in `CELLRANGER/<library>/outs` and `pipeline_info/`.
+
+Every flag in the usual invocation is a param, and the command built per
+library is:
+
+```bash
+<crpath|cellranger> count --id=<library> \
+  --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam> --r1-length=<r1length> \
+  --transcriptome=<ref> \
+  --fastqs=<staged fastqs for this library>
+```
+
+`--localcores` and `--localmem` set the Nextflow reservation *and* the Cell
+Ranger flags from one value, so what the scheduler holds and what Cell Ranger
+believes it has cannot drift apart.
+
+### Running the native install instead of the container
+
+On a server where Cell Ranger is already deployed under `/programs`, skip the
+container entirely:
+
+```bash
+nextflow run https://github.com/bixBeta/10x -r main \
+  --crpath /programs/cellranger-9.0.1/cellranger \
+  --sheet sample-sheet.csv --ref CanFam3_1
+```
+
+Add `-c` with `singularity.enabled = false`, or run it as-is — the container is
+only pulled when a process actually needs it.
 
 ## Cell Ranger version
 
