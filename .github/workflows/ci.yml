@@ -1,7 +1,7 @@
 name: ci
 
-# Syntax + channel-logic checks. Runs the pipeline with -stub-run, so no
-# Cell Ranger, no containers and no real data are needed.
+# Syntax + channel logic check. Runs with -stub-run, so no Cell Ranger,
+# no containers and no real data are needed.
 
 on:
   push:
@@ -17,8 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 25.04.1 is what the production server runs; latest-stable catches
-        # upcoming breakage early.
+        # 25.04.1 is what the server runs; latest-stable catches breakage early.
         nxf_ver: [ '25.04.1', 'latest-stable' ]
 
     steps:
@@ -35,37 +34,36 @@ jobs:
           version: ${{ matrix.nxf_ver }}
 
       - name: Generate test data
-        run: bash assets/test_data/make_test_data.sh
+        run: bash test/make_test_data.sh
 
-      - name: Samplesheet validation only
-        run: nextflow run . -profile test --validate_only
+      - name: Help text
+        run: nextflow run . --help
+
+      - name: List references
+        run: nextflow run . --listRefs
 
       - name: GEX stub run
-        run: nextflow run . -profile test -stub-run
-
-      - name: Multi-library / multi-run stub run
-        run: nextflow run . -profile test_multi -stub-run --outdir results_multi
-
-      - name: ARC samplesheet parses and is deferred
-        run: nextflow run . -profile test_arc --validate_only
-
-      - name: Show outputs
-        if: always()
-        run: find results results_multi -maxdepth 4 -type d 2>/dev/null | sort || true
-
-  lint:
-    name: config lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - uses: nf-core/setup-nextflow@v2
-      - name: Config resolves for every profile
         run: |
-          for p in test test_multi test_arc docker singularity slurm ; do
-            echo "== $p"
-            nextflow config . -profile "$p" > /dev/null
+          nextflow run . -stub-run -c test/ci.config \
+            --sheet test/sample-sheet.csv \
+            --ref   test/ref \
+            --id    CI_TEST
+
+      - name: Check the grouping
+        run: |
+          set -euo pipefail
+          # 5 sheet rows -> 4 libraries: SS2's two runs pool into one count,
+          # SS3's two GEM wells stay separate.
+          for lib in SS1 SS2 SS3_wellA SS3_wellB ; do
+            test -d "CELLRANGER/$lib" || { echo "missing CELLRANGER/$lib"; exit 1; }
           done
+          n=$(ls -1 CELLRANGER | wc -l)
+          test "$n" -eq 4 || { echo "expected 4 libraries, got $n"; ls CELLRANGER; exit 1; }
+          echo "grouping OK: $(ls CELLRANGER | tr '\n' ' ')"
+
+      - name: Rejects a bad mode
+        run: |
+          if nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref --mode nope ; then
+            echo "expected failure for --mode nope" ; exit 1
+          fi
+          echo "bad mode rejected"

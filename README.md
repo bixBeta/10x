@@ -1,214 +1,140 @@
 # 10x
 
-A modular Nextflow (DSL2) pipeline for 10x Genomics single-cell data.
+Nextflow pipeline for 10x Genomics single cell runs.
 
-| Modality | Tool | Status |
+| mode | tool | status |
 |---|---|---|
-| Gene expression (`gex`) | `cellranger count` | implemented |
-| ATAC (`atac`) | `cellranger-atac count` | planned, v0.2 |
-| Multiome (`arc_gex` + `arc_atac`) | `cellranger-arc count` | planned, v0.3 |
+| `gex` | `cellranger count` | working |
+| `atac` | `cellranger-atac count` | v0.2 |
+| `arc` | `cellranger-arc count` | v0.3 |
 
-The samplesheet schema already accepts all three, so adding a modality means
-adding a subworkflow — existing samplesheets keep working.
-
-Requires Nextflow >= 24.04 (developed and tested against 25.04.1).
-
-## Quick start
+## Usage
 
 ```bash
-nextflow run bixBeta/10x -profile singularity \
-    --input samplesheet.csv \
-    --reference /refs/refdata-gex-GRCh38-2024-A \
-    --outdir results
+nextflow run https://github.com/bixBeta/10x -r main --id TREx_1234 --sheet sample-sheet.csv --ref GRCh38
 ```
-
-Pin a specific Cell Ranger version for a run:
 
 ```bash
-nextflow run bixBeta/10x -profile singularity --cellranger_version 7.2.0 --input samplesheet.csv --reference /refs/refdata-gex-GRCh38-2024-A
+nextflow run https://github.com/bixBeta/10x -r main --help
 ```
-
-Validate a samplesheet without running anything:
 
 ```bash
-nextflow run bixBeta/10x --input samplesheet.csv --validate_only
+nextflow run https://github.com/bixBeta/10x -r main --listRefs
 ```
 
-## Samplesheet
+## Sample sheet
 
-| Column | Required | Notes |
+```csv
+label,fastq1,fastq2
+SS1,SS1_R1.fastq.gz,SS1_R2.fastq.gz
+SS2,SS2_R1.fastq.gz,SS2_R2.fastq.gz
+```
+
+One row per fastq pair. Fastq names are arbitrary — they get symlinked into the
+bcl2fastq convention Cell Ranger requires. Use `--fastqs` if the files sit in a
+`fastqs` folder in the project dir, otherwise give absolute paths.
+
+### Same library sequenced more than once
+
+Top-ups and extra flow cells: just repeat the label. The rows are pooled into
+**one** `cellranger count` as consecutive lanes, which is what you want — same
+GEM well, same cells.
+
+```csv
+label,fastq1,fastq2
+SS1,run1/SS1_R1.fastq.gz,run1/SS1_R2.fastq.gz
+SS1,run2/SS1_R1.fastq.gz,run2/SS1_R2.fastq.gz
+```
+
+### Several libraries from one sample
+
+Separate GEM wells: add the optional `library` column. Barcodes are not
+comparable across GEM wells, so each library is counted **separately** while
+staying tied to its `label` for later aggregation.
+
+```csv
+label,library,fastq1,fastq2
+SS1,SS1_wellA,A_R1.fastq.gz,A_R2.fastq.gz
+SS1,SS1_wellB,B_R1.fastq.gz,B_R2.fastq.gz
+```
+
+Rows sharing `library` are pooled; rows differing in `library` are not. The two
+rules compose, so a named library can still have several run rows.
+
+## Params
+
+| param | default | notes |
 |---|---|---|
-| `sample` | yes | Biological sample; the aggregation key |
-| `library` | no | One physical 10x library (one GEM well). Defaults to `sample` |
-| `fastq_1` | yes | |
-| `fastq_2` | yes | |
-| `fastq_3` | ATAC only | Required for `atac`/`arc_atac`, forbidden otherwise |
-| `modality` | no | `gex` (default), `atac`, `arc_gex`, `arc_atac` |
-
-FASTQs can be named anything — the pipeline symlinks them into the
-bcl2fastq-style names Cell Ranger insists on.
-
-### The two "multiple runs" cases
-
-**Same library, sequenced more than once** (top-up runs, extra flowcells) — repeat
-the `sample`, leave `library` alone. The rows are merged into a single
-`cellranger count` as consecutive pseudo-lanes:
-
-```csv
-sample,library,fastq_1,fastq_2,modality
-pbmc,,/runs/jul/pbmc_R1.fq.gz,/runs/jul/pbmc_R2.fq.gz,gex
-pbmc,,/runs/aug/pbmc_R1.fq.gz,/runs/aug/pbmc_R2.fq.gz,gex
-```
-
-**Several libraries from one sample** (separate GEM wells) — give each its own
-`library`. Barcodes are not comparable across GEM wells, so each library is
-counted separately; they stay linked through `sample` for later aggregation:
-
-```csv
-sample,library,fastq_1,fastq_2,modality
-pbmc,pbmc_wellA,/runs/jul/A_R1.fq.gz,/runs/jul/A_R2.fq.gz,gex
-pbmc,pbmc_wellB,/runs/jul/B_R1.fq.gz,/runs/jul/B_R2.fq.gz,gex
-```
-
-The two compose: a library with its own `library` name can still have several
-run rows.
-
-### Multiome (ARC)
-
-One sample, one `arc_gex` library and one `arc_atac` library. The pipeline
-generates the `libraries.csv` that `cellranger-arc count` needs.
-
-```csv
-sample,library,fastq_1,fastq_2,fastq_3,modality
-brain_1,brain_1_gex,/runs/b1gex_R1.fq.gz,/runs/b1gex_R2.fq.gz,,arc_gex
-brain_1,brain_1_atac,/runs/b1atac_R1.fq.gz,/runs/b1atac_R2.fq.gz,/runs/b1atac_R3.fq.gz,arc_atac
-```
-
-`arc_*` is deliberately distinct from plain `gex`/`atac`: a standalone scRNA
-library and a standalone scATAC library from the same tissue are *not* multiome
-and cannot go through `cellranger-arc`. Stating intent in the samplesheet lets
-validation catch that instead of guessing.
-
-## Parameters
-
-| Param | Default | Description |
-|---|---|---|
-| `--input` | — | Samplesheet CSV |
-| `--reference` | — | Cell Ranger transcriptome directory (GEX) |
-| `--outdir` | `./results` | |
-| `--cellranger_version` | `9.0.1` | Selects the GHCR image tag |
-| `--cellranger_container` | — | Full image or `.sif` path; overrides the version |
+| `--id` | `TREx_ID` | TREx Project ID |
+| `--sheet` | `sample-sheet.csv` | |
+| `--mode` | `gex` | `gex`, `atac`, `arc` |
+| `--ref` | — | key from `--listRefs`, or a path to a transcriptome dir |
+| `--fastqs` | — | fastqs live in `fastqs/` in the project dir |
 | `--chemistry` | `auto` | |
-| `--expect_cells` / `--force_cells` | — | |
-| `--create_bam` | `false` | |
-| `--include_introns` | tool default | |
-| `--max_cpus` / `--max_memory` / `--max_time` | `32` / `256.GB` / `96.h` | Ceilings |
-| `--validate_only` | `false` | Parse and validate the samplesheet, then stop |
+| `--expectCells` / `--forceCells` | — | |
+| `--createBam` | `false` | |
+| `--introns` | tool default | |
+| `--crversion` | `9.0.1` | Cell Ranger version, selects the container tag |
+| `--container` | — | full override, e.g. a local `.sif` |
 
-Any flag not exposed above can go through `task.ext.args`:
+Outputs land in `CELLRANGER/<library>/outs` and `pipeline_info/`.
 
-```groovy
-process {
-    withName: CELLRANGER_COUNT {
-        ext.args = '--nosecondary --r1-length 26'
-    }
-}
+## Cell Ranger version
+
+The container tag follows `--crversion`, so a run can be pinned to any built
+version without touching the code:
+
+```bash
+nextflow run https://github.com/bixBeta/10x -r main --crversion 7.2.0 --sheet sample-sheet.csv --ref GRCh38
 ```
 
 ## Containers
 
-Cell Ranger is licensed software and **must not be redistributed**, so there is
-no public image and the tarball never touches this (public) repository. Build
-your own private image:
+Cell Ranger is licensed software and must not be redistributed, so the images
+are **private** on GHCR and this repo never holds the tarball.
+
+Built in two layers so the Cell Ranger install is isolated:
+
+| image | holds | rebuilt |
+|---|---|---|
+| `cellranger-base:<version>` | the Cell Ranger install, nothing else | only when missing |
+| `cellranger:<version>` | anything on top, built `FROM` the base | every run, in seconds |
+
+To build a version:
 
 1. Accept the EULA on the [10x downloads page](https://www.10xgenomics.com/support/software/cell-ranger/downloads)
-   to reveal the signed download link. It expires, so grab a fresh one per build.
-2. Store it as a repository secret:
+   to reveal the signed link. It expires, so use it promptly.
+2. Store it as the repo secret `TENX_DOWNLOAD_URL` — only the URL, not the whole
+   `curl` command.
+3. Run the **build-container** workflow from the Actions tab.
 
-   ```bash
-   gh secret set TENX_DOWNLOAD_URL --body '<signed-url>'
-   ```
+Additions go in the marked extension block of
+`containers/cellranger/Dockerfile`; leave `Dockerfile.base` alone.
 
-3. Run the **build-container** workflow from the Actions tab, choosing the tool
-   and version.
-4. Confirm both packages are **private** in your GHCR package settings. The repo
-   being public does not make the packages public, but check it once.
+### Pulling on the server
 
-### Two layers, so Cell Ranger is built once
-
-| image | holds | rebuilt when |
-|---|---|---|
-| `<tool>-base:<version>` | the Cell Ranger install, nothing else | only when missing, or `rebuild_base` is ticked |
-| `<tool>:<version>` | everything on top, built `FROM` the base | every run — takes seconds |
-
-The base is probed in the registry before anything is downloaded, so once
-`cellranger-base:9.0.1` exists, adding tooling to the image never re-downloads
-Cell Ranger and does not even need the download secret. Put additions in the
-marked extension block in `containers/cellranger/Dockerfile` and leave
-`Dockerfile.base` alone.
-
-Rebuild the base only when the tarball itself must change — a corrupt download,
-or a re-release under the same version. That needs a fresh `TENX_DOWNLOAD_URL`,
-since signed links expire.
-
-Prefer to keep binaries off GitHub entirely? Build locally and push by hand:
-
-```bash
-cp ~/Downloads/cellranger-9.0.1.tar.gz containers/cellranger/tool.tar.gz
-docker build containers/cellranger -f containers/cellranger/Dockerfile.base --build-arg TOOL=cellranger --build-arg VERSION=9.0.1 -t ghcr.io/bixbeta/cellranger-base:9.0.1
-docker build containers/cellranger -f containers/cellranger/Dockerfile --build-arg BASE_IMAGE=ghcr.io/bixbeta/cellranger-base:9.0.1 --build-arg VERSION=9.0.1 -t ghcr.io/bixbeta/cellranger:9.0.1
-docker push ghcr.io/bixbeta/cellranger:9.0.1
-```
-
-Multiple versions can coexist as tags; `--cellranger_version` picks one per run.
-
-### Singularity on the server
-
-GHCR needs credentials for private images. Use a classic PAT with `read:packages`:
+The packages are private, so either export credentials:
 
 ```bash
 export SINGULARITY_DOCKER_USERNAME=bixBeta
-export SINGULARITY_DOCKER_PASSWORD=<ghcr-pat>
-export NXF_SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
-nextflow run bixBeta/10x -profile singularity,slurm --input samplesheet.csv --reference /refs/refdata-gex-GRCh38-2024-A
+export SINGULARITY_DOCKER_PASSWORD=<ghcr-pat-with-read:packages>
 ```
 
-To avoid pulling on every node, pre-build the SIF once and point at it directly:
+or, better for a shared server, pull the SIF once into a shared cache so nobody
+else needs credentials:
 
 ```bash
-singularity pull /shared/sif/cellranger-9.0.1.sif docker://ghcr.io/bixbeta/cellranger:9.0.1
-nextflow run bixBeta/10x -profile singularity --cellranger_container /shared/sif/cellranger-9.0.1.sif --input samplesheet.csv --reference /refs/refdata-gex-GRCh38-2024-A
+export NXF_SINGULARITY_CACHEDIR=/shared/singularity_cache
+singularity pull docker://ghcr.io/bixbeta/cellranger:9.0.1
 ```
-
-## Profiles
-
-`docker`, `singularity`, `apptainer`, `slurm`, `debug`, and the stub profiles
-`test`, `test_multi`, `test_arc`. Combine them: `-profile singularity,slurm`.
 
 ## Development
 
-Everything is testable without Cell Ranger or real data:
+No Cell Ranger or real data needed:
 
 ```bash
-bash assets/test_data/make_test_data.sh
-nextflow run . -profile test_multi -stub-run
+bash test/make_test_data.sh
+nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref
 ```
 
-CI runs exactly this on every push.
-
-## Layout
-
-```
-main.nf                                  entrypoint
-workflows/tenx.nf                        dispatch by modality
-subworkflows/local/samplesheet.nf        parse, validate, group
-subworkflows/local/gex.nf                GEX path
-modules/local/cellranger/count/main.nf   cellranger count
-conf/                                    resources, publishing, test profiles
-containers/cellranger/Dockerfile         private GHCR image
-```
-
-## Licence
-
-Pipeline code: MIT. Cell Ranger and the 10x reference packages are covered by
-the 10x Genomics EULA and are not distributed here.
+CI runs the same thing on every push, against Nextflow 25.04.1 and latest.

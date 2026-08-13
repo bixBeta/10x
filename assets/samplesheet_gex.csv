@@ -1,6 +1,0 @@
-sample,library,fastq_1,fastq_2,modality
-pbmc_healthy,,/data/runs/2026-07-01/pbmc_healthy_L001_R1.fastq.gz,/data/runs/2026-07-01/pbmc_healthy_L001_R2.fastq.gz,gex
-pbmc_healthy,,/data/runs/2026-07-01/pbmc_healthy_L002_R1.fastq.gz,/data/runs/2026-07-01/pbmc_healthy_L002_R2.fastq.gz,gex
-pbmc_healthy,,/data/runs/2026-08-02_topup/pbmc_healthy_R1.fastq.gz,/data/runs/2026-08-02_topup/pbmc_healthy_R2.fastq.gz,gex
-pbmc_treated,pbmc_treated_wellA,/data/runs/2026-07-01/treated_A_R1.fastq.gz,/data/runs/2026-07-01/treated_A_R2.fastq.gz,gex
-pbmc_treated,pbmc_treated_wellB,/data/runs/2026-07-01/treated_B_R1.fastq.gz,/data/runs/2026-07-01/treated_B_R2.fastq.gz,gex

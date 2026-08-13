@@ -1,6 +1,0 @@
-sample,library,fastq_1,fastq_2,fastq_3,modality
-brain_1,brain_1_gex,/data/runs/0712/b1gex_L001_R1.fastq.gz,/data/runs/0712/b1gex_L001_R2.fastq.gz,,arc_gex
-brain_1,brain_1_gex,/data/runs/0801/b1gex_L001_R1.fastq.gz,/data/runs/0801/b1gex_L001_R2.fastq.gz,,arc_gex
-brain_1,brain_1_atac,/data/runs/0712/b1atac_L001_R1.fastq.gz,/data/runs/0712/b1atac_L001_R2.fastq.gz,/data/runs/0712/b1atac_L001_R3.fastq.gz,arc_atac
-brain_2,brain_2_gex,/data/runs/0712/b2gex_L001_R1.fastq.gz,/data/runs/0712/b2gex_L001_R2.fastq.gz,,arc_gex
-brain_2,brain_2_atac,/data/runs/0712/b2atac_L001_R1.fastq.gz,/data/runs/0712/b2atac_L001_R2.fastq.gz,/data/runs/0712/b2atac_L001_R3.fastq.gz,arc_atac

@@ -3,16 +3,19 @@ work/
 .nextflow/
 .nextflow.log*
 .nextflow.pid
-results*/
+
+# Pipeline outputs
+CELLRANGER/
+pipeline_info/
 report*.html
 timeline*.html
 trace*.txt
 dag*.html
 
 # Generated test inputs
-assets/test_data/fastq/
-assets/test_data/ref/
-assets/test_data/samplesheet_*.csv
+test/fastq/
+test/ref/
+test/sample-sheet.csv
 
 # Vendor tarballs - 10x binaries must never be committed (EULA).
 # Match tarballs only: a rule like `containers/**/cellranger*` would exclude the
@@ -31,3 +34,4 @@ assets/test_data/samplesheet_*.csv
 *.swp
 .idea/
 .vscode/
+.claude/
