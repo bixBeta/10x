@@ -3,16 +3,24 @@ name: build-container
 # =============================================================================
 #  Builds a 10x tool image and pushes it to a PRIVATE GHCR package.
 #
-#  Prerequisites (once per version):
-#    1. Download the tarball from 10x (requires accepting their EULA).
-#    2. Upload it to the private `vendor` release:
-#         gh release create vendor --notes "10x vendor tarballs"   # first time
-#         gh release upload vendor cellranger-9.0.1.tar.gz
-#    3. Run this workflow from the Actions tab with the matching version.
+#  This repository is public, so the Cell Ranger tarball can never live in it
+#  (no release assets, no committed files) - the 10x EULA forbids
+#  redistribution. Instead the tarball is fetched at build time from a signed
+#  10x download URL held in a repository secret.
 #
-#  IMPORTANT: the resulting package must stay PRIVATE. Cell Ranger may not be
-#  redistributed under the 10x EULA. New GHCR packages are private by default;
-#  verify at https://github.com/users/OWNER/packages after the first push.
+#  Before building a version:
+#    1. Go to https://www.10xgenomics.com/support/software/cell-ranger/downloads
+#       and accept the EULA to reveal the signed download link (it expires,
+#       so refresh it each time you build).
+#    2. Store it as the repository secret TENX_DOWNLOAD_URL:
+#         gh secret set TENX_DOWNLOAD_URL --body '<signed-url>'
+#    3. Run this workflow with the matching tool + version.
+#
+#  The secret is masked in logs and is not exposed to pull requests from forks.
+#
+#  IMPORTANT: the resulting GHCR package must stay PRIVATE, even though the
+#  repository is public. New packages are private by default - verify at
+#  https://github.com/users/bixBeta/packages after the first push.
 # =============================================================================
 
 on:
@@ -28,7 +36,7 @@ on:
           - cellranger-atac
           - cellranger-arc
       version:
-        description: 'Version, e.g. 9.0.1 (tarball must be <tool>-<version>.tar.gz on the vendor release)'
+        description: 'Version, e.g. 9.0.1 (must match the tarball behind TENX_DOWNLOAD_URL)'
         required: true
         default: '9.0.1'
         type: string
@@ -50,17 +58,27 @@ jobs:
       - name: Free up disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          df -h
+          df -h /
 
-      - name: Fetch vendor tarball
+      - name: Download tarball from 10x
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TENX_DOWNLOAD_URL: ${{ secrets.TENX_DOWNLOAD_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${TENX_DOWNLOAD_URL:-}" ] ; then
+            echo "::error::Repository secret TENX_DOWNLOAD_URL is not set. See the header of this workflow."
+            exit 1
+          fi
           TARBALL="${{ inputs.tool }}-${{ inputs.version }}.tar.gz"
-          echo "Downloading $TARBALL from the 'vendor' release"
-          gh release download vendor --pattern "$TARBALL" --dir containers/cellranger
+          # -sS keeps the signed URL out of the log
+          curl -fsSL "$TENX_DOWNLOAD_URL" -o "containers/cellranger/$TARBALL"
           ls -lh "containers/cellranger/$TARBALL"
+
+          # Fail early if the URL pointed at a different version than requested
+          if ! tar -tzf "containers/cellranger/$TARBALL" | head -n1 | grep -q "^${{ inputs.tool }}-${{ inputs.version }}/" ; then
+            echo "::error::Tarball does not contain ${{ inputs.tool }}-${{ inputs.version }}/ - the URL and the version input disagree."
+            exit 1
+          fi
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -97,8 +115,8 @@ jobs:
             echo ''
             echo 'Use it with:'
             echo '```bash'
-            echo "nextflow run . --cellranger_version ${{ inputs.version }}"
+            echo "nextflow run bixBeta/10x --cellranger_version ${{ inputs.version }}"
             echo '```'
             echo ''
-            echo '> Confirm the package visibility is **private** - the 10x EULA forbids redistribution.'
+            echo '> Check the package visibility is **private** - the repo is public, but the 10x EULA forbids redistributing Cell Ranger.'
           } >> "$GITHUB_STEP_SUMMARY"

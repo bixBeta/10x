@@ -116,19 +116,29 @@ process {
 ## Containers
 
 Cell Ranger is licensed software and **must not be redistributed**, so there is
-no public image. Build your own private one:
+no public image and the tarball never touches this (public) repository. Build
+your own private image:
 
-1. Download the tarball from 10x (accept their EULA).
-2. Upload it to a private release on this repo:
+1. Accept the EULA on the [10x downloads page](https://www.10xgenomics.com/support/software/cell-ranger/downloads)
+   to reveal the signed download link. It expires, so grab a fresh one per build.
+2. Store it as a repository secret:
 
    ```bash
-   gh release create vendor --notes "10x vendor tarballs"
-   gh release upload vendor cellranger-9.0.1.tar.gz
+   gh secret set TENX_DOWNLOAD_URL --body '<signed-url>'
    ```
 
 3. Run the **build-container** workflow from the Actions tab, choosing the tool
    and version. It pushes `ghcr.io/bixbeta/cellranger:<version>`.
-4. Confirm the package is **private** in your GHCR package settings.
+4. Confirm the package is **private** in your GHCR package settings. The repo
+   being public does not make the package public, but check it once.
+
+Prefer to keep binaries off GitHub entirely? Build locally and push by hand:
+
+```bash
+cp ~/Downloads/cellranger-9.0.1.tar.gz containers/cellranger/
+docker build containers/cellranger --build-arg TOOL=cellranger --build-arg VERSION=9.0.1 -t ghcr.io/bixbeta/cellranger:9.0.1
+docker push ghcr.io/bixbeta/cellranger:9.0.1
+```
 
 Multiple versions can coexist as tags; `--cellranger_version` picks one per run.
 
