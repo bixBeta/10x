@@ -1,6 +1,13 @@
-# 10x
+# Nextflow Pipeline for 10x Genomics single cell runs
 
-Nextflow pipeline for 10x Genomics single cell runs.
+[![ci](https://github.com/bixBeta/10x/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bixBeta/10x/actions/workflows/ci.yml)
+[![build-container](https://github.com/bixBeta/10x/actions/workflows/build-containers.yml/badge.svg)](https://github.com/bixBeta/10x/actions/workflows/build-containers.yml)
+[![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-25.04.1-23aa62.svg)](https://www.nextflow.io/)
+[![Singularity](https://img.shields.io/badge/container-Singularity-1d355c.svg)](https://sylabs.io/singularity/)
+[![Cell Ranger](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
+[![GHCR](https://img.shields.io/badge/ghcr.io-private-lightgrey.svg)](https://github.com/bixBeta/10x/pkgs/container/cellranger)
+
+<hr>
 
 | mode | tool | status |
 |---|---|---|
@@ -60,6 +67,14 @@ SS1,SS1_wellB,B_R1.fastq.gz,B_R2.fastq.gz
 
 Rows sharing `library` are pooled; rows differing in `library` are not. The two
 rules compose, so a named library can still have several run rows.
+
+### fastq3
+
+Not used by `gex`, and rejected with a clear error if present. It returns with
+`--mode atac` and `--mode arc`, where ATAC reads are R1 + R2 (16 bp barcode) +
+R3 and all three have to reach `cellranger-atac`. A stray `fastq3` in a GEX
+sheet almost always means the wrong `--mode`, which is why it errors rather
+than being ignored.
 
 ## Params
 

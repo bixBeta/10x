@@ -71,3 +71,11 @@ jobs:
             echo "expected failure for --mode nope" ; exit 1
           fi
           echo "bad mode rejected"
+
+      - name: Rejects fastq3 in gex mode
+        run: |
+          sed '1s/$/,fastq3/; 2s|$|,/tmp/x_R3.fastq.gz|' test/sample-sheet.csv > test/sheet-fastq3.csv
+          if nextflow run . -stub-run -c test/ci.config --sheet test/sheet-fastq3.csv --ref test/ref ; then
+            echo "expected failure for fastq3 in gex mode" ; exit 1
+          fi
+          echo "fastq3 rejected in gex mode"

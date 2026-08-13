@@ -78,6 +78,9 @@ Args:
     * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
                        : use 'atac' for scATAC                 ( v0.2, not yet implemented )
                        : use 'arc'  for multiome GEX + ATAC    ( v0.3, not yet implemented )
+
+                         atac and arc will add a fastq3 column to the sheet, since ATAC
+                         reads are R1 + R2 ( 16bp barcode ) + R3. gex rejects fastq3.
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
     * --fastqs         : Use this param if fastq files are in the fastqs folder in the project directory;
@@ -195,6 +198,12 @@ def readSheet() {
               if( !label )       error "sample-sheet: every row needs a label"
               if( !row.fastq1 )  error "sample-sheet: ${label} is missing fastq1"
               if( !row.fastq2 )  error "sample-sheet: ${label} is missing fastq2 ( 10x reads are always paired )"
+
+              // ATAC reads are R1 + R2 (16bp barcode) + R3, so atac and arc modes
+              // take a third column. gex has no use for it, and a stray fastq3
+              // usually means the wrong --mode.
+              if( row.fastq3?.trim() )
+                  error "sample-sheet: ${label} has fastq3, which only applies to --mode atac / arc. GEX libraries are R1 + R2 only."
 
               [ [label, library], [ file(dir + row.fastq1.trim()), file(dir + row.fastq2.trim()) ] ]
           }
