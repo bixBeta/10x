@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Stand-in for the cellranger binary, used by CI via --crpath.
+#
+# -stub-run skips the real script block entirely, so the actual command line is
+# never exercised. Pointing --crpath at this script runs the module for real -
+# fastq staging, flag construction, the mv, versions.yml - and records what was
+# asked for so CI can assert on it.
+
+set -euo pipefail
+
+if [ "${1:-}" = "--version" ] ; then
+    echo "cellranger cellranger-9.0.1"
+    exit 0
+fi
+
+ID=""
+FASTQS=""
+for a in "$@" ; do
+    case "$a" in
+        --id=*)      ID="${a#--id=}"      ;;
+        --fastqs=*)  FASTQS="${a#--fastqs=}" ;;
+    esac
+done
+
+if [ -z "$ID" ] ; then
+    echo "fake-cellranger: no --id given" >&2
+    exit 1
+fi
+
+mkdir -p "${ID}/outs"
+touch "${ID}/outs/web_summary.html"
+touch "${ID}/outs/metrics_summary.csv"
+touch "${ID}/outs/filtered_feature_bc_matrix.h5"
+
+# record the invocation and the staged fastqs for CI to check
+printf '%s\n' "$@" > "${ID}/outs/command.txt"
+ls "${FASTQS}" > "${ID}/outs/fastqs.txt"

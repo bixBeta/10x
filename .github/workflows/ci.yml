@@ -79,3 +79,48 @@ jobs:
             echo "expected failure for fastq3 in gex mode" ; exit 1
           fi
           echo "fastq3 rejected in gex mode"
+
+      - name: Real command line (fake cellranger via --crpath)
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER
+          nextflow run . -c test/ci.config \
+            --sheet test/sample-sheet.csv \
+            --ref   /local/workdir/10x_analysis/REFS/Canine/CanFam3_1 \
+            --crpath "$PWD/test/fake-cellranger" \
+            --localcores 2 --localmem 4
+
+          echo "--- command built for SS2 ---"
+          cat CELLRANGER/SS2/outs/command.txt
+
+          grep -qx -- 'count'                                                    CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--id=SS2'                                                 CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--localcores=2'                                           CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--localmem=4'                                             CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--create-bam=false'                                       CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--r1-length=28'                                           CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--transcriptome=/local/workdir/10x_analysis/REFS/Canine/CanFam3_1' CELLRANGER/SS2/outs/command.txt
+          grep -qx -- '--fastqs=fqs'                                             CELLRANGER/SS2/outs/command.txt
+          echo "command line OK"
+
+          echo "--- fastqs staged for SS2 (two sequencing runs) ---"
+          cat CELLRANGER/SS2/outs/fastqs.txt
+          for f in SS2_S1_L001_R1_001.fastq.gz SS2_S1_L001_R2_001.fastq.gz \
+                   SS2_S1_L002_R1_001.fastq.gz SS2_S1_L002_R2_001.fastq.gz ; do
+            grep -qx -- "$f" CELLRANGER/SS2/outs/fastqs.txt || { echo "missing $f"; exit 1; }
+          done
+          echo "lane staging OK"
+
+          test -s pipeline_info/software_versions.yml
+          echo "versions OK"
+
+      - name: r1length 0 omits the flag
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --r1length 0
+          if grep -q -- '--r1-length' CELLRANGER/SS1/outs/command.txt ; then
+            echo "expected no --r1-length"; exit 1
+          fi
+          echo "r1length 0 OK"
