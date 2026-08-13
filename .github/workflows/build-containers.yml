@@ -66,9 +66,18 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${TENX_DOWNLOAD_URL:-}" ] ; then
-            echo "::error::Repository secret TENX_DOWNLOAD_URL is not set. See the header of this workflow."
+            echo "::error::Repository secret TENX_DOWNLOAD_URL is not set. Add it under Settings > Secrets and variables > Actions, using only the quoted URL from the 10x download page (not the whole curl command)."
             exit 1
           fi
+
+          # The 10x downloads page shows a full `curl -o ... "https://..."` line.
+          # Pasting all of it is the easy mistake, so say so plainly.
+          case "$TENX_DOWNLOAD_URL" in
+            http*) : ;;
+            *) echo "::error::TENX_DOWNLOAD_URL does not start with http. Store only the URL itself, without the surrounding curl command or quotes."
+               exit 1 ;;
+          esac
+
           TARBALL="${{ inputs.tool }}-${{ inputs.version }}.tar.gz"
           # -sS keeps the signed URL out of the log
           curl -fsSL "$TENX_DOWNLOAD_URL" -o "containers/cellranger/$TARBALL"
