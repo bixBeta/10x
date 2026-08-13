@@ -26,11 +26,13 @@
 ----------------------------------------------------------------------------------------
 */
 
-def VALID_MODALITIES = ['gex', 'atac', 'arc_gex', 'arc_atac']
-def ATAC_LIKE        = ['atac', 'arc_atac']
-
 // Turn one CSV row into [ meta, [fastq_1, fastq_2, fastq_3 or null] ]
+// Constants live inside the function: top-level `def` in a Nextflow script is a
+// local of the run method and is not visible from methods.
 def parse_row(row, row_num) {
+
+    def valid_modalities = ['gex', 'atac', 'arc_gex', 'arc_atac']
+    def atac_like        = ['atac', 'arc_atac']
 
     def err = { msg -> error("[samplesheet] line ${row_num}: ${msg}") }
 
@@ -39,8 +41,8 @@ def parse_row(row, row_num) {
     if ( sample =~ /\s/ ) err("'sample' must not contain spaces: '${sample}'")
 
     def modality = (row.modality?.trim() ?: 'gex').toLowerCase()
-    if ( !(modality in VALID_MODALITIES) )
-        err("unknown modality '${modality}'. Valid: ${VALID_MODALITIES.join(', ')}")
+    if ( !(modality in valid_modalities) )
+        err("unknown modality '${modality}'. Valid: ${valid_modalities.join(', ')}")
 
     // library defaults to sample -> the simple one-library-per-sample case
     def library = row.library?.trim() ?: sample
@@ -55,7 +57,7 @@ def parse_row(row, row_num) {
 
     def has_fq3 = row.fastq_3?.trim() as Boolean
 
-    if ( modality in ATAC_LIKE ) {
+    if ( modality in atac_like ) {
         if ( !has_fq3 )
             err("modality '${modality}' requires 'fastq_3' (ATAC reads are R1 + R2[barcode] + R3)")
         fq3 = file(row.fastq_3.trim(), checkIfExists: true)
@@ -73,8 +75,7 @@ def parse_row(row, row_num) {
         id       : library,      // unique key for one Cell Ranger run
         sample   : sample,       // biological unit, used for aggregation
         library  : library,
-        modality : modality,
-        single_library : (library == sample)
+        modality : modality
     ]
 
     [ meta, [ fq1, fq2, fq3 ] ]
@@ -91,11 +92,10 @@ workflow SAMPLESHEET {
     def ch_rows = Channel
         .fromPath(samplesheet, checkIfExists: true)
         .splitCsv(header: true, strip: true)
-        // keep a 1-based line number (+1 for the header) for error messages
-        .map { row -> [ row, 0 ] }
         .toList()
         .flatMap { rows ->
-            rows.withIndex().collect { pair, idx -> parse_row(pair[0], idx + 2) }
+            // +2 so the number matches the line in the file (1-based, plus header)
+            rows.withIndex().collect { row, idx -> parse_row(row, idx + 2) }
         }
 
     // ---- merge re-sequencing runs of the same physical library --------------

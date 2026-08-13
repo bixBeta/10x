@@ -33,7 +33,7 @@ process CELLRANGER_COUNT {
     tag   "${meta.id}"
     label 'process_cellranger'
 
-    container "${ params.cellranger_container ?: "ghcr.io/${params.ghcr_owner}/cellranger:${params.cellranger_version}" }"
+    container { params.cellranger_container ?: "ghcr.io/${params.ghcr_owner}/cellranger:${params.cellranger_version}" }
 
     input:
     tuple val(meta), path(r1, stageAs: 'R1_??.fastq.gz'), path(r2, stageAs: 'R2_??.fastq.gz'), path(r3, stageAs: 'R3_??.fastq.gz')

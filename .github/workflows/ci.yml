@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        nxf_ver: [ '23.10.1', 'latest-stable' ]
+        nxf_ver: [ '24.04.4', 'latest-stable' ]
 
     steps:
       - uses: actions/checkout@v4
@@ -61,5 +61,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: nf-core/setup-nextflow@v2
-      - name: Check the pipeline compiles
-        run: nextflow inspect . -profile test --outdir /tmp/inspect || nextflow config . -profile test
+      - name: Config resolves for every profile
+        run: |
+          for p in test test_multi test_arc docker singularity slurm ; do
+            echo "== $p"
+            nextflow config . -profile "$p" > /dev/null
+          done
