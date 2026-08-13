@@ -73,6 +73,33 @@ Args:
         | SS1   | SS1_wellA | A_R1.fastq.gz   | A_R2.fastq.gz   |
         | SS1   | SS1_wellB | B_R1.fastq.gz   | B_R2.fastq.gz   |
         |-------|-----------|-----------------|-----------------|
+
+        ATAC ( --mode atac, v0.2 ): adds fastq3. ATAC reads are
+        R1 + R2 + R3, where R2 is the 16bp cell barcode and R1 / R3 are the
+        genomic pair. All three columns are required.
+
+        |-------|-----------------|-----------------|-----------------|
+        | label | fastq1          | fastq2          | fastq3          |
+        |-------|-----------------|-----------------|-----------------|
+        | SS1   | SS1_R1.fastq.gz | SS1_R2.fastq.gz | SS1_R3.fastq.gz |
+        |-------|-----------------|-----------------|-----------------|
+
+        MULTIOME ( --mode arc, v0.3 ): one label carries BOTH a gex and an
+        atac library, so the sheet adds a type column. gex rows leave fastq3
+        empty; atac rows must fill it. The pipeline builds the libraries.csv
+        that cellranger-arc expects.
+
+        |-------|-----------|------|--------------|--------------|--------------|
+        | label | library   | type | fastq1       | fastq2       | fastq3       |
+        |-------|-----------|------|--------------|--------------|--------------|
+        | SS1   | SS1_gex   | gex  | g_R1.fq.gz   | g_R2.fq.gz   |              |
+        | SS1   | SS1_atac  | atac | a_R1.fq.gz   | a_R2.fq.gz   | a_R3.fq.gz   |
+        |-------|-----------|------|--------------|--------------|--------------|
+
+        type is only read in arc mode. A standalone scRNA library and a
+        standalone scATAC library from the same tissue are NOT multiome and
+        cannot go through cellranger-arc, so intent is stated rather than
+        guessed from the sheet.
         -----------------------------------------------------------
 
     * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
@@ -203,7 +230,7 @@ def readSheet() {
               // take a third column. gex has no use for it, and a stray fastq3
               // usually means the wrong --mode.
               if( row.fastq3?.trim() )
-                  error "sample-sheet: ${label} has fastq3, which only applies to --mode atac / arc. GEX libraries are R1 + R2 only."
+                  error "sample-sheet: ${label} has fastq3, which only applies to --mode atac / arc. GEX libraries are R1 + R2 only. See --help for the per mode sheet layouts."
 
               [ [label, library], [ file(dir + row.fastq1.trim()), file(dir + row.fastq2.trim()) ] ]
           }

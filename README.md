@@ -68,13 +68,36 @@ SS1,SS1_wellB,B_R1.fastq.gz,B_R2.fastq.gz
 Rows sharing `library` are pooled; rows differing in `library` are not. The two
 rules compose, so a named library can still have several run rows.
 
-### fastq3
+### Sheet columns per mode
 
-Not used by `gex`, and rejected with a clear error if present. It returns with
-`--mode atac` and `--mode arc`, where ATAC reads are R1 + R2 (16 bp barcode) +
-R3 and all three have to reach `cellranger-atac`. A stray `fastq3` in a GEX
-sheet almost always means the wrong `--mode`, which is why it errors rather
-than being ignored.
+| mode | columns | status |
+|---|---|---|
+| `gex` | `label`, `library`*, `fastq1`, `fastq2` | working |
+| `atac` | `label`, `library`*, `fastq1`, `fastq2`, `fastq3` | v0.2 |
+| `arc` | `label`, `library`*, `type`, `fastq1`, `fastq2`, `fastq3`† | v0.3 |
+
+\* optional everywhere — defaults to `label`.
+† `gex` rows leave `fastq3` empty; `atac` rows must fill it.
+
+`fastq3` exists because ATAC reads are R1 + R2 + R3, where R2 is the 16 bp cell
+barcode and R1/R3 are the genomic pair — all three have to reach
+`cellranger-atac`. GEX has no third read, so a `fastq3` column in a GEX sheet
+errors rather than being ignored: it nearly always means the wrong `--mode`.
+
+**Multiome (`--mode arc`)** puts a `gex` and an `atac` library under one label
+and adds a `type` column; the pipeline generates the `libraries.csv` that
+`cellranger-arc` consumes:
+
+```csv
+label,library,type,fastq1,fastq2,fastq3
+SS1,SS1_gex,gex,g_R1.fq.gz,g_R2.fq.gz,
+SS1,SS1_atac,atac,a_R1.fq.gz,a_R2.fq.gz,a_R3.fq.gz
+```
+
+`type` is deliberately explicit rather than inferred. A standalone scRNA
+library and a standalone scATAC library from the same tissue are *not* multiome
+— that is a different kit and different chemistry — and cannot go through
+`cellranger-arc`. Stating intent lets the sheet be validated instead of guessed.
 
 ## Params
 
