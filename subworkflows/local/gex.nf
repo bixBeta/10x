@@ -19,7 +19,7 @@ workflow GEX {
 
     def ch_versions = Channel.empty()
 
-    CELLRANGER_COUNT ( ch_libraries, ch_reference.first() )
+    CELLRANGER_COUNT ( ch_libraries, ch_reference )
     ch_versions = ch_versions.mix( CELLRANGER_COUNT.out.versions.first() )
 
     emit:
