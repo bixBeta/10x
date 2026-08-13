@@ -1,0 +1,31 @@
+# Nextflow
+work/
+.nextflow/
+.nextflow.log*
+.nextflow.pid
+results*/
+report*.html
+timeline*.html
+trace*.txt
+dag*.html
+
+# Generated test inputs
+assets/test_data/fastq/
+assets/test_data/ref/
+assets/test_data/samplesheet_*.csv
+
+# Vendor tarballs - 10x binaries must never be committed (EULA)
+*.tar.gz
+containers/**/cellranger*
+!containers/**/Dockerfile
+
+# Singularity images
+*.sif
+.singularity*/
+.apptainer*/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

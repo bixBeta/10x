@@ -1,0 +1,104 @@
+name: build-container
+
+# =============================================================================
+#  Builds a 10x tool image and pushes it to a PRIVATE GHCR package.
+#
+#  Prerequisites (once per version):
+#    1. Download the tarball from 10x (requires accepting their EULA).
+#    2. Upload it to the private `vendor` release:
+#         gh release create vendor --notes "10x vendor tarballs"   # first time
+#         gh release upload vendor cellranger-9.0.1.tar.gz
+#    3. Run this workflow from the Actions tab with the matching version.
+#
+#  IMPORTANT: the resulting package must stay PRIVATE. Cell Ranger may not be
+#  redistributed under the 10x EULA. New GHCR packages are private by default;
+#  verify at https://github.com/users/OWNER/packages after the first push.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      tool:
+        description: 'Which 10x tool to build'
+        required: true
+        default: 'cellranger'
+        type: choice
+        options:
+          - cellranger
+          - cellranger-atac
+          - cellranger-arc
+      version:
+        description: 'Version, e.g. 9.0.1 (tarball must be <tool>-<version>.tar.gz on the vendor release)'
+        required: true
+        default: '9.0.1'
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Fetch vendor tarball
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TARBALL="${{ inputs.tool }}-${{ inputs.version }}.tar.gz"
+          echo "Downloading $TARBALL from the 'vendor' release"
+          gh release download vendor --pattern "$TARBALL" --dir containers/cellranger
+          ls -lh "containers/cellranger/$TARBALL"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase owner
+        id: owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: containers/cellranger
+          file: containers/cellranger/Dockerfile
+          push: true
+          provenance: false
+          build-args: |
+            TOOL=${{ inputs.tool }}
+            VERSION=${{ inputs.version }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ inputs.tool }}:${{ inputs.version }}
+
+      - name: Summary
+        run: |
+          {
+            echo "### Built \`${{ inputs.tool }}:${{ inputs.version }}\`"
+            echo ''
+            echo '```'
+            echo "${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ inputs.tool }}:${{ inputs.version }}"
+            echo '```'
+            echo ''
+            echo 'Use it with:'
+            echo '```bash'
+            echo "nextflow run . --cellranger_version ${{ inputs.version }}"
+            echo '```'
+            echo ''
+            echo '> Confirm the package visibility is **private** - the 10x EULA forbids redistribution.'
+          } >> "$GITHUB_STEP_SUMMARY"
