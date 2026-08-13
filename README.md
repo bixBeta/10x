@@ -11,6 +11,8 @@ A modular Nextflow (DSL2) pipeline for 10x Genomics single-cell data.
 The samplesheet schema already accepts all three, so adding a modality means
 adding a subworkflow — existing samplesheets keep working.
 
+Requires Nextflow >= 24.04 (developed and tested against 25.04.1).
+
 ## Quick start
 
 ```bash

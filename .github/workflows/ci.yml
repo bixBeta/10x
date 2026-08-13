@@ -17,7 +17,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        nxf_ver: [ '24.04.4', 'latest-stable' ]
+        # 25.04.1 is what the production server runs; latest-stable catches
+        # upcoming breakage early.
+        nxf_ver: [ '25.04.1', 'latest-stable' ]
 
     steps:
       - uses: actions/checkout@v4
