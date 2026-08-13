@@ -32,6 +32,11 @@ touch "${ID}/outs/web_summary.html"
 touch "${ID}/outs/metrics_summary.csv"
 touch "${ID}/outs/filtered_feature_bc_matrix.h5"
 
-# record the invocation and the staged fastqs for CI to check
-printf '%s\n' "$@" > "${ID}/outs/command.txt"
-ls "${FASTQS}" > "${ID}/outs/fastqs.txt"
+# Record the invocation and the staged fastqs for CI to assert on. These are
+# written outside the task dir because publishDir only publishes files the
+# module declares as outputs, which these deliberately are not.
+if [ -n "${CI_CAPTURE:-}" ] ; then
+    mkdir -p "$CI_CAPTURE"
+    printf '%s\n' "$@"   > "${CI_CAPTURE}/${ID}.command.txt"
+    ls "${FASTQS}"       > "${CI_CAPTURE}/${ID}.fastqs.txt"
+fi
