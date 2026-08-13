@@ -128,7 +128,12 @@ jobs:
           ls -lh containers/cellranger/tool.tar.gz
 
           # Fail before the build if the URL and the version input disagree.
-          top=$(tar -tzf containers/cellranger/tool.tar.gz | head -n1)
+          # pipefail is relaxed for this one pipeline: head closes the pipe
+          # after the first entry, tar dies on SIGPIPE, and that is expected
+          # rather than an error.
+          set +o pipefail
+          top=$(tar -tzf containers/cellranger/tool.tar.gz 2>/dev/null | head -n1)
+          set -o pipefail
           echo "Tarball root: $top"
           case "$top" in
             ${{ inputs.tool }}-${{ inputs.version }}/*) : ;;
