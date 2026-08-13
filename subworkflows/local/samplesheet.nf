@@ -26,6 +26,12 @@
 ----------------------------------------------------------------------------------------
 */
 
+// Raised on any malformed row. A plain function, not a closure: the strict
+// script syntax (NF >= 26) does not allow calling a closure like a function.
+def sheet_error(row_num, msg) {
+    error("[samplesheet] line ${row_num}: ${msg}")
+}
+
 // Turn one CSV row into [ meta, [fastq_1, fastq_2, fastq_3 or null] ]
 // Constants live inside the function: top-level `def` in a Nextflow script is a
 // local of the run method and is not visible from methods.
@@ -34,22 +40,20 @@ def parse_row(row, row_num) {
     def valid_modalities = ['gex', 'atac', 'arc_gex', 'arc_atac']
     def atac_like        = ['atac', 'arc_atac']
 
-    def err = { msg -> error("[samplesheet] line ${row_num}: ${msg}") }
-
     def sample = row.sample?.trim()
-    if ( !sample ) err("'sample' is required")
-    if ( sample =~ /\s/ ) err("'sample' must not contain spaces: '${sample}'")
+    if ( !sample ) sheet_error(row_num, "'sample' is required")
+    if ( sample =~ /\s/ ) sheet_error(row_num, "'sample' must not contain spaces: '${sample}'")
 
     def modality = (row.modality?.trim() ?: 'gex').toLowerCase()
     if ( !(modality in valid_modalities) )
-        err("unknown modality '${modality}'. Valid: ${valid_modalities.join(', ')}")
+        sheet_error(row_num, "unknown modality '${modality}'. Valid: ${valid_modalities.join(', ')}")
 
     // library defaults to sample -> the simple one-library-per-sample case
     def library = row.library?.trim() ?: sample
-    if ( library =~ /\s/ ) err("'library' must not contain spaces: '${library}'")
+    if ( library =~ /\s/ ) sheet_error(row_num, "'library' must not contain spaces: '${library}'")
 
-    if ( !row.fastq_1?.trim() ) err("'fastq_1' is required")
-    if ( !row.fastq_2?.trim() ) err("'fastq_2' is required (10x reads are always paired)")
+    if ( !row.fastq_1?.trim() ) sheet_error(row_num, "'fastq_1' is required")
+    if ( !row.fastq_2?.trim() ) sheet_error(row_num, "'fastq_2' is required (10x reads are always paired)")
 
     def fq1 = file(row.fastq_1.trim(), checkIfExists: true)
     def fq2 = file(row.fastq_2.trim(), checkIfExists: true)
@@ -59,11 +63,11 @@ def parse_row(row, row_num) {
 
     if ( modality in atac_like ) {
         if ( !has_fq3 )
-            err("modality '${modality}' requires 'fastq_3' (ATAC reads are R1 + R2[barcode] + R3)")
+            sheet_error(row_num, "modality '${modality}' requires 'fastq_3' (ATAC reads are R1 + R2[barcode] + R3)")
         fq3 = file(row.fastq_3.trim(), checkIfExists: true)
     }
     else if ( has_fq3 ) {
-        err("modality '${modality}' must not set 'fastq_3'")
+        sheet_error(row_num, "modality '${modality}' must not set 'fastq_3'")
     }
 
     [ fq1, fq2, fq3 ].findAll { it }.each { f ->
