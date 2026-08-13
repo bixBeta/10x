@@ -130,15 +130,33 @@ your own private image:
    ```
 
 3. Run the **build-container** workflow from the Actions tab, choosing the tool
-   and version. It pushes `ghcr.io/bixbeta/cellranger:<version>`.
-4. Confirm the package is **private** in your GHCR package settings. The repo
-   being public does not make the package public, but check it once.
+   and version.
+4. Confirm both packages are **private** in your GHCR package settings. The repo
+   being public does not make the packages public, but check it once.
+
+### Two layers, so Cell Ranger is built once
+
+| image | holds | rebuilt when |
+|---|---|---|
+| `<tool>-base:<version>` | the Cell Ranger install, nothing else | only when missing, or `rebuild_base` is ticked |
+| `<tool>:<version>` | everything on top, built `FROM` the base | every run — takes seconds |
+
+The base is probed in the registry before anything is downloaded, so once
+`cellranger-base:9.0.1` exists, adding tooling to the image never re-downloads
+Cell Ranger and does not even need the download secret. Put additions in the
+marked extension block in `containers/cellranger/Dockerfile` and leave
+`Dockerfile.base` alone.
+
+Rebuild the base only when the tarball itself must change — a corrupt download,
+or a re-release under the same version. That needs a fresh `TENX_DOWNLOAD_URL`,
+since signed links expire.
 
 Prefer to keep binaries off GitHub entirely? Build locally and push by hand:
 
 ```bash
-cp ~/Downloads/cellranger-9.0.1.tar.gz containers/cellranger/
-docker build containers/cellranger --build-arg TOOL=cellranger --build-arg VERSION=9.0.1 -t ghcr.io/bixbeta/cellranger:9.0.1
+cp ~/Downloads/cellranger-9.0.1.tar.gz containers/cellranger/tool.tar.gz
+docker build containers/cellranger -f containers/cellranger/Dockerfile.base --build-arg TOOL=cellranger --build-arg VERSION=9.0.1 -t ghcr.io/bixbeta/cellranger-base:9.0.1
+docker build containers/cellranger -f containers/cellranger/Dockerfile --build-arg BASE_IMAGE=ghcr.io/bixbeta/cellranger-base:9.0.1 --build-arg VERSION=9.0.1 -t ghcr.io/bixbeta/cellranger:9.0.1
 docker push ghcr.io/bixbeta/cellranger:9.0.1
 ```
 

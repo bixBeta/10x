@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+#  BASE layer: the 10x tool install, and nothing else.
+# =============================================================================
+#  This image is expensive to build (multi-GB download and extract) and should
+#  change only when the Cell Ranger version changes. Anything else the pipeline
+#  needs belongs in the overlay Dockerfile, which builds FROM this image, so
+#  adding tooling later never re-downloads or re-extracts Cell Ranger.
+#
+#  Pushed as:  ghcr.io/<owner>/<tool>-base:<version>
+#
+#  Cell Ranger is licensed by 10x Genomics and must not be redistributed.
+#  Keep the resulting package PRIVATE.
+#
+#  The tarball is bind-mounted rather than COPYed: a COPY would persist the
+#  multi-GB archive in its own layer on top of the extracted copy, roughly
+#  doubling the image. The bind mount exists only for the length of the RUN.
+#  It is always staged as tool.tar.gz so the mount needs no build-arg expansion.
+# =============================================================================
+
+FROM ubuntu:22.04
+
+ARG TOOL=cellranger
+ARG VERSION=9.0.1
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# Runtime deps for the bundled binaries (STAR, samtools) plus procps, which
+# Nextflow needs for `ps` when it collects task metrics.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        procps \
+        zlib1g \
+        libbz2-1.0 \
+        liblzma5 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN --mount=type=bind,source=tool.tar.gz,target=/tmp/tool.tar.gz \
+    tar -xzf /tmp/tool.tar.gz -C /opt \
+    && test -x "/opt/${TOOL}-${VERSION}/${TOOL}"
+
+ENV PATH="/opt/${TOOL}-${VERSION}:${PATH}"
+
+LABEL org.opencontainers.image.title="${TOOL}-base" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.description="10x Genomics ${TOOL} ${VERSION} install layer - private, redistribution prohibited by the 10x EULA" \
+      org.opencontainers.image.licenses="LicenseRef-10x-EULA"
+
+WORKDIR /tmp
+CMD ["bash"]

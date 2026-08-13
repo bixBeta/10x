@@ -14,10 +14,12 @@ assets/test_data/fastq/
 assets/test_data/ref/
 assets/test_data/samplesheet_*.csv
 
-# Vendor tarballs - 10x binaries must never be committed (EULA)
+# Vendor tarballs - 10x binaries must never be committed (EULA).
+# Match tarballs only: a rule like `containers/**/cellranger*` would exclude the
+# containers/cellranger DIRECTORY, and git will not descend into an excluded
+# directory, so a `!...Dockerfile` negation cannot bring the Dockerfiles back.
 *.tar.gz
-containers/**/cellranger*
-!containers/**/Dockerfile
+*.tgz
 
 # Singularity images
 *.sif

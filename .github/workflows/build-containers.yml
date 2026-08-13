@@ -1,26 +1,27 @@
 name: build-container
 
 # =============================================================================
-#  Builds a 10x tool image and pushes it to a PRIVATE GHCR package.
+#  Builds a 10x tool image in two layers and pushes both to PRIVATE GHCR
+#  packages.
 #
-#  This repository is public, so the Cell Ranger tarball can never live in it
-#  (no release assets, no committed files) - the 10x EULA forbids
-#  redistribution. Instead the tarball is fetched at build time from a signed
-#  10x download URL held in a repository secret.
+#    <tool>-base:<version>   the Cell Ranger install. Expensive, rarely changes.
+#    <tool>:<version>        everything else, built FROM the base. Cheap.
 #
-#  Before building a version:
-#    1. Go to https://www.10xgenomics.com/support/software/cell-ranger/downloads
-#       and accept the EULA to reveal the signed download link (it expires,
-#       so refresh it each time you build).
-#    2. Store it as the repository secret TENX_DOWNLOAD_URL:
-#         gh secret set TENX_DOWNLOAD_URL --body '<signed-url>'
+#  The base is built only when it is missing from the registry (or when
+#  rebuild_base is ticked), so routine changes to the overlay never re-download
+#  Cell Ranger and do not even need the download secret.
+#
+#  Before the FIRST build of a version:
+#    1. Accept the EULA at
+#       https://www.10xgenomics.com/support/software/cell-ranger/downloads
+#       to reveal the signed download link. It expires, so use it promptly.
+#    2. Settings > Secrets and variables > Actions > TENX_DOWNLOAD_URL.
+#       Store only the URL, not the whole curl command.
 #    3. Run this workflow with the matching tool + version.
 #
-#  The secret is masked in logs and is not exposed to pull requests from forks.
-#
-#  IMPORTANT: the resulting GHCR package must stay PRIVATE, even though the
-#  repository is public. New packages are private by default - verify at
-#  https://github.com/users/bixBeta/packages after the first push.
+#  IMPORTANT: this repository is public, but the packages must stay PRIVATE -
+#  the 10x EULA forbids redistributing Cell Ranger. New packages are private by
+#  default; verify at https://github.com/users/bixBeta/packages.
 # =============================================================================
 
 on:
@@ -40,31 +41,71 @@ on:
         required: true
         default: '9.0.1'
         type: string
+      rebuild_base:
+        description: 'Rebuild the Cell Ranger base layer even if it already exists (needs a fresh TENX_DOWNLOAD_URL)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  #  Base layer - skipped entirely when the image is already in the registry.
+  # ---------------------------------------------------------------------------
+  base:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.names.outputs.base }}
 
     steps:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Free up disk space
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve image names
+        id: names
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          df -h /
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "base=${REGISTRY}/${owner}/${{ inputs.tool }}-base:${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          echo "overlay=${REGISTRY}/${owner}/${{ inputs.tool }}:${{ inputs.version }}"   >> "$GITHUB_OUTPUT"
+
+      - name: Does the base already exist?
+        id: probe
+        run: |
+          if [ "${{ inputs.rebuild_base }}" = "true" ] ; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "rebuild_base requested - the base will be rebuilt"
+          elif docker manifest inspect "${{ steps.names.outputs.base }}" > /dev/null 2>&1 \
+            || docker buildx imagetools inspect "${{ steps.names.outputs.base }}" > /dev/null 2>&1 ; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Base image already present, skipping the Cell Ranger download and build"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Base image not found, it will be built"
+          fi
+
+      - name: Set up Buildx
+        if: steps.probe.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v3
 
       - name: Download tarball from 10x
+        if: steps.probe.outputs.exists != 'true'
         env:
           TENX_DOWNLOAD_URL: ${{ secrets.TENX_DOWNLOAD_URL }}
         run: |
           set -euo pipefail
+
           if [ -z "${TENX_DOWNLOAD_URL:-}" ] ; then
             echo "::error::Repository secret TENX_DOWNLOAD_URL is not set. Add it under Settings > Secrets and variables > Actions, using only the quoted URL from the 10x download page (not the whole curl command)."
             exit 1
@@ -78,16 +119,49 @@ jobs:
                exit 1 ;;
           esac
 
-          TARBALL="${{ inputs.tool }}-${{ inputs.version }}.tar.gz"
-          # -sS keeps the signed URL out of the log
-          curl -fsSL "$TENX_DOWNLOAD_URL" -o "containers/cellranger/$TARBALL"
-          ls -lh "containers/cellranger/$TARBALL"
+          # The build context must exist before curl writes into it; curl exits
+          # 23 rather than creating the directory.
+          mkdir -p containers/cellranger
 
-          # Fail early if the URL pointed at a different version than requested
-          if ! tar -tzf "containers/cellranger/$TARBALL" | head -n1 | grep -q "^${{ inputs.tool }}-${{ inputs.version }}/" ; then
-            echo "::error::Tarball does not contain ${{ inputs.tool }}-${{ inputs.version }}/ - the URL and the version input disagree."
-            exit 1
-          fi
+          # Always tool.tar.gz: Dockerfile.base bind-mounts that fixed name.
+          curl -fsSL "$TENX_DOWNLOAD_URL" -o containers/cellranger/tool.tar.gz
+          ls -lh containers/cellranger/tool.tar.gz
+
+          # Fail before the build if the URL and the version input disagree.
+          top=$(tar -tzf containers/cellranger/tool.tar.gz | head -n1)
+          echo "Tarball root: $top"
+          case "$top" in
+            ${{ inputs.tool }}-${{ inputs.version }}/*) : ;;
+            *) echo "::error::Tarball root is '$top', expected ${{ inputs.tool }}-${{ inputs.version }}/. The download URL and the version input disagree."
+               exit 1 ;;
+          esac
+
+      - name: Build and push base
+        if: steps.probe.outputs.exists != 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: containers/cellranger
+          file: containers/cellranger/Dockerfile.base
+          push: true
+          provenance: false
+          build-args: |
+            TOOL=${{ inputs.tool }}
+            VERSION=${{ inputs.version }}
+          tags: ${{ steps.names.outputs.base }}
+
+  # ---------------------------------------------------------------------------
+  #  Overlay - always rebuilt, cheap, needs no secret.
+  # ---------------------------------------------------------------------------
+  overlay:
+    needs: base
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -96,11 +170,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lowercase owner
-        id: owner
-        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      - name: Resolve image name
+        id: names
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "overlay=${REGISTRY}/${owner}/${{ inputs.tool }}:${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push overlay
         uses: docker/build-push-action@v5
         with:
           context: containers/cellranger
@@ -108,24 +187,25 @@ jobs:
           push: true
           provenance: false
           build-args: |
+            BASE_IMAGE=${{ needs.base.outputs.image }}
             TOOL=${{ inputs.tool }}
             VERSION=${{ inputs.version }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ inputs.tool }}:${{ inputs.version }}
+          tags: ${{ steps.names.outputs.overlay }}
 
       - name: Summary
         run: |
           {
             echo "### Built \`${{ inputs.tool }}:${{ inputs.version }}\`"
             echo ''
-            echo '```'
-            echo "${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ inputs.tool }}:${{ inputs.version }}"
-            echo '```'
+            echo '| layer | image |'
+            echo '|---|---|'
+            echo '| base (Cell Ranger) | `${{ needs.base.outputs.image }}` |'
+            echo '| overlay (pipeline) | `${{ steps.names.outputs.overlay }}` |'
             echo ''
             echo 'Use it with:'
             echo '```bash'
             echo "nextflow run bixBeta/10x --cellranger_version ${{ inputs.version }}"
             echo '```'
             echo ''
-            echo '> Check the package visibility is **private** - the repo is public, but the 10x EULA forbids redistributing Cell Ranger.'
+            echo '> Check both packages are **private** - the repo is public, but the 10x EULA forbids redistributing Cell Ranger.'
           } >> "$GITHUB_STEP_SUMMARY"
