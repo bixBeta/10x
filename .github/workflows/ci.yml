@@ -17,8 +17,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 25.04.1 is what the server runs; latest-stable catches breakage early.
-        nxf_ver: [ '25.04.1', 'latest-stable' ]
+        # 25.04.1 is what the server runs. Nextflow 26 ships a strict script
+        # syntax that rejects top level statements, so the flat layout used
+        # across the bixBeta pipelines (params + if(params.help) + banner at
+        # file scope) will not compile there. Pinned deliberately until that
+        # style question is settled for all the pipelines at once.
+        nxf_ver: [ '25.04.1' ]
 
     steps:
       - uses: actions/checkout@v4
