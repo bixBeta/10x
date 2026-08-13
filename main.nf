@@ -6,11 +6,9 @@
 ========================================================================================
     Implemented modalities : gex
     Planned                : atac, arc (arc_gex + arc_atac)
-    Github                 : https://github.com/OWNER/10x
+    Github                 : https://github.com/bixBeta/10x
 ========================================================================================
 */
-
-nextflow.enable.dsl = 2
 
 include { TENX } from './workflows/tenx'
 
@@ -29,11 +27,5 @@ workflow {
     ==========================================================
     """.stripIndent()
 
-    TENX ()
-}
-
-workflow.onComplete {
-    log.info ( workflow.success
-        ? "\nDone. Results in ${params.outdir}\n"
-        : "\nPipeline failed. See ${params.outdir}/pipeline_info for details.\n" )
+    TENX()
 }
