@@ -32,72 +32,73 @@ nextflow run https://github.com/bixBeta/10x -r main --listRefs
 ## Sample sheet
 
 ```csv
-label,fastq1,fastq2
-SS1,SS1_R1.fastq.gz,SS1_R2.fastq.gz
-SS2,SS2_R1.fastq.gz,SS2_R2.fastq.gz
+label,fastqs
+JS4,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2
+JS5,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2
 ```
 
-One row per fastq pair. Fastq names are arbitrary — they get symlinked into the
-bcl2fastq convention Cell Ranger requires. Use `--fastqs` if the files sit in a
-`fastqs` folder in the project dir, otherwise give absolute paths.
+`fastqs` is the 10x delivery directory — or any fastq inside it, whichever is
+easier to paste. A file resolves to its parent, since `--fastqs` takes a
+directory. **Nothing is copied, staged or renamed**; the path goes to Cell
+Ranger exactly as given.
+
+`label` is yours: short, user defined, used for `--id` and the output folder.
+It is never derived from the path.
+
+`--sample` is read off the files in the directory, because Cell Ranger needs
+the fastq prefix rather than the directory name:
+
+```
+Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
+  SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
+  -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
+```
+
+It is read from the actual filenames rather than parsed out of the directory
+name, so an unexpected naming variant fails in the sheet check with a clear
+message instead of inside Cell Ranger.
 
 ### Same library sequenced more than once
 
-Top-ups and extra flow cells: just repeat the label. The rows are pooled into
-**one** `cellranger count` as consecutive lanes, which is what you want — same
-GEM well, same cells.
+Top-ups and extra flow cells: repeat the label. The directories are handed to
+Cell Ranger as one comma-separated `--fastqs`, which is how it pools them.
 
 ```csv
-label,fastq1,fastq2
-SS1,run1/SS1_R1.fastq.gz,run1/SS1_R2.fastq.gz
-SS1,run2/SS1_R1.fastq.gz,run2/SS1_R2.fastq.gz
+label,fastqs
+JS5,/local/Illumina/DRV/run1/.../Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2
+JS5,/local/Illumina/DRV/run2/.../Sample_SC2620_JS5_G3_Sofia_10488923_999XYZAB2_L3
 ```
+
+Note the flow cell is part of the fastq prefix, so a top-up on a different flow
+cell has a *different* `--sample` value. Both are collected and passed as
+`--sample=prefix1,prefix2`; missing that would silently drop the second run.
 
 ### Several libraries from one sample
 
 Separate GEM wells: add the optional `library` column. Barcodes are not
-comparable across GEM wells, so each library is counted **separately** while
-staying tied to its `label` for later aggregation.
+comparable across GEM wells, so each library is counted separately while
+staying tied to its `label`.
 
 ```csv
-label,library,fastq1,fastq2
-SS1,SS1_wellA,A_R1.fastq.gz,A_R2.fastq.gz
-SS1,SS1_wellB,B_R1.fastq.gz,B_R2.fastq.gz
+label,library,fastqs
+JS6,JS6_wellA,/local/.../Sample_SC2620_JS6A_G3_Scooter_10488923_253GGLLT4_L2
+JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_Scooter_10488923_253GGLLT4_L2
 ```
 
-Rows sharing `library` are pooled; rows differing in `library` are not. The two
-rules compose, so a named library can still have several run rows.
-
-### Sheet columns per mode
+### Columns per mode
 
 | mode | columns | status |
 |---|---|---|
-| `gex` | `label`, `library`*, `fastq1`, `fastq2` | working |
-| `atac` | `label`, `library`*, `fastq1`, `fastq2`, `fastq3` | v0.2 |
-| `arc` | `label`, `library`*, `type`, `fastq1`, `fastq2`, `fastq3`† | v0.3 |
+| `gex` | `label`, `library`*, `fastqs` | working |
+| `atac` | `label`, `library`*, `fastqs` | v0.2 |
+| `arc` | `label`, `library`*, `type`, `fastqs` | v0.3 |
 
-\* optional everywhere — defaults to `label`.
-† `gex` rows leave `fastq3` empty; `atac` rows must fill it.
+\* optional — defaults to `label`.
 
-`fastq3` exists because ATAC reads are R1 + R2 + R3, where R2 is the 16 bp cell
-barcode and R1/R3 are the genomic pair — all three have to reach
-`cellranger-atac`. GEX has no third read, so a `fastq3` column in a GEX sheet
-errors rather than being ignored: it nearly always means the wrong `--mode`.
-
-**Multiome (`--mode arc`)** puts a `gex` and an `atac` library under one label
-and adds a `type` column; the pipeline generates the `libraries.csv` that
-`cellranger-arc` consumes:
-
-```csv
-label,library,type,fastq1,fastq2,fastq3
-SS1,SS1_gex,gex,g_R1.fq.gz,g_R2.fq.gz,
-SS1,SS1_atac,atac,a_R1.fq.gz,a_R2.fq.gz,a_R3.fq.gz
-```
-
-`type` is deliberately explicit rather than inferred. A standalone scRNA
-library and a standalone scATAC library from the same tissue are *not* multiome
-— that is a different kit and different chemistry — and cannot go through
-`cellranger-arc`. Stating intent lets the sheet be validated instead of guessed.
+ATAC and multiome use the same sheet. R1/R2/R3 all live inside the delivery
+directory, so there is no `fastq3` column to fill in — that column existed only
+back when the sheet listed individual files. `arc` adds a `type` column
+(`gex` | `atac`) so one label can carry both libraries.
 
 ## Params
 

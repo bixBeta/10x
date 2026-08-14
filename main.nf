@@ -6,7 +6,6 @@ params.sheet            = "sample-sheet.csv"
 // Module Params:
 params.help             = false
 params.listRefs         = false
-params.fastqs           = null
 
 // Default Params:
 params.mode             = "gex"
@@ -48,76 +47,72 @@ Args:
 
         -----------------------------------------------------------
         Sample Sheet Example: ( comma delimited file )
-        |-------|-----------------|-----------------|
-        | label | fastq1          | fastq2          |
-        |-------|-----------------|-----------------|
-        | SS1   | SS1_R1.fastq.gz | SS1_R2.fastq.gz |
-        | SS2   | SS2_R1.fastq.gz | SS2_R2.fastq.gz |
-        |-------|-----------------|-----------------|
+        |-------|------------------------------------------------------------|
+        | label | fastqs                                                     |
+        |-------|------------------------------------------------------------|
+        | JS4   | /local/Illumina/DRV/<run>/Unaligned/Project_10488923/Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2 |
+        | JS5   | /local/Illumina/DRV/<run>/Unaligned/Project_10488923/Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2 |
+        |-------|------------------------------------------------------------|
 
-        One row per fastq pair. Fastq names are arbitrary; they get renamed
-        into the bcl2fastq convention Cell Ranger expects.
+        fastqs is either the 10x delivery directory or ANY fastq inside it,
+        whichever is easier to paste. A file resolves to its parent dir, since
+        --fastqs always takes a directory. Nothing is copied, staged or renamed.
+        Both of these are the same library:
+
+            /local/.../Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2
+            /local/.../Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
+
+        label is yours: short, user defined, and used for --id and for the
+        output folder. It is never derived from the path.
+
+        --sample is read off the files in the directory, since cellranger has
+        to be given the fastq prefix:
+
+            Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
+              SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
+              -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
 
         Same library sequenced more than once ( top-ups, extra flow cells ):
-        repeat the label. The rows are pooled into ONE cellranger count as
-        consecutive lanes.
+        repeat the label. The dirs are passed as ONE comma separated --fastqs,
+        which is how cellranger pools them.
 
-        |-------|-----------------------|-----------------------|
-        | label | fastq1                | fastq2                |
-        |-------|-----------------------|-----------------------|
-        | SS1   | run1/SS1_R1.fastq.gz  | run1/SS1_R2.fastq.gz  |
-        | SS1   | run2/SS1_R1.fastq.gz  | run2/SS1_R2.fastq.gz  |
-        |-------|-----------------------|-----------------------|
+        |-------|--------------------------------------------|
+        | label | fastqs                                     |
+        |-------|--------------------------------------------|
+        | JS4   | /local/Illumina/DRV/run1/.../Sample_SC2620_JS4_..._L2 |
+        | JS4   | /local/Illumina/DRV/run2/.../Sample_SC2620_JS4_..._L3 |
+        |-------|--------------------------------------------|
 
         Several libraries from one sample ( separate GEM wells ): add the
         optional library column. Barcodes are not comparable across GEM wells,
         so each library is counted separately and stays tied to its label.
 
-        |-------|-----------|-----------------|-----------------|
-        | label | library   | fastq1          | fastq2          |
-        |-------|-----------|-----------------|-----------------|
-        | SS1   | SS1_wellA | A_R1.fastq.gz   | A_R2.fastq.gz   |
-        | SS1   | SS1_wellB | B_R1.fastq.gz   | B_R2.fastq.gz   |
-        |-------|-----------|-----------------|-----------------|
+        |-------|-----------|------------------------------------|
+        | label | library   | fastqs                             |
+        |-------|-----------|------------------------------------|
+        | JS4   | JS4_wellA | /local/.../Sample_SC2620_JS4A_..._L2 |
+        | JS4   | JS4_wellB | /local/.../Sample_SC2620_JS4B_..._L2 |
+        |-------|-----------|------------------------------------|
 
-        ATAC ( --mode atac, v0.2 ): adds fastq3. ATAC reads are
-        R1 + R2 + R3, where R2 is the 16bp cell barcode and R1 / R3 are the
-        genomic pair. All three columns are required.
+        ATAC ( --mode atac, v0.2 ) and MULTIOME ( --mode arc, v0.3 ) use the
+        same directory based sheet. R1 / R2 / R3 live inside the delivery dir,
+        so there is no fastq3 column to fill in. arc adds a type column
+        ( gex | atac ) so one label can carry both libraries.
 
-        |-------|-----------------|-----------------|-----------------|
-        | label | fastq1          | fastq2          | fastq3          |
-        |-------|-----------------|-----------------|-----------------|
-        | SS1   | SS1_R1.fastq.gz | SS1_R2.fastq.gz | SS1_R3.fastq.gz |
-        |-------|-----------------|-----------------|-----------------|
-
-        MULTIOME ( --mode arc, v0.3 ): one label carries BOTH a gex and an
-        atac library, so the sheet adds a type column. gex rows leave fastq3
-        empty; atac rows must fill it. The pipeline builds the libraries.csv
-        that cellranger-arc expects.
-
-        |-------|-----------|------|--------------|--------------|--------------|
-        | label | library   | type | fastq1       | fastq2       | fastq3       |
-        |-------|-----------|------|--------------|--------------|--------------|
-        | SS1   | SS1_gex   | gex  | g_R1.fq.gz   | g_R2.fq.gz   |              |
-        | SS1   | SS1_atac  | atac | a_R1.fq.gz   | a_R2.fq.gz   | a_R3.fq.gz   |
-        |-------|-----------|------|--------------|--------------|--------------|
-
-        type is only read in arc mode. A standalone scRNA library and a
-        standalone scATAC library from the same tissue are NOT multiome and
-        cannot go through cellranger-arc, so intent is stated rather than
-        guessed from the sheet.
+        |-------|-----------|------|------------------------------|
+        | label | library   | type | fastqs                       |
+        |-------|-----------|------|------------------------------|
+        | JS4   | JS4_gex   | gex  | /local/.../Sample_..._GEX_L2  |
+        | JS4   | JS4_atac  | atac | /local/.../Sample_..._ATAC_L2 |
+        |-------|-----------|------|------------------------------|
         -----------------------------------------------------------
 
     * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
                        : use 'atac' for scATAC                 ( v0.2, not yet implemented )
                        : use 'arc'  for multiome GEX + ATAC    ( v0.3, not yet implemented )
 
-                         atac and arc will add a fastq3 column to the sheet, since ATAC
-                         reads are R1 + R2 ( 16bp barcode ) + R3. gex rejects fastq3.
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
-    * --fastqs         : Use this param if fastq files are in the fastqs folder in the project directory;
-                         If --fastqs is not specified, the fastqs must be supplied with absolute paths in the sample-sheet.csv
     * --chemistry      : Cell Ranger chemistry; default <auto>
     * --expectCells    : Expected number of recovered cells; default <null> ( Cell Ranger estimates )
     * --forceCells     : Force pipeline to use this number of cells
@@ -137,10 +132,10 @@ Args:
 
   The command this builds per library:
 
-    <crpath|cellranger> count --id=<library> \\
+    <crpath|cellranger> count --id=<label> \\
       --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam> --r1-length=<r1length> \\
       --transcriptome=<ref> \\
-      --fastqs=<staged fastqs for this library>
+      --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]>
 
 """
 
@@ -238,35 +233,84 @@ are pooled as consecutive lanes. Rows differing in library are separate GEM well
 and are counted separately.
 ------------------------------------------------------------------------------------------------------------ */
 
-def readSheet() {
+// cellranger --sample must match the fastq prefix INSIDE the delivery dir, which
+// is the dir name without the Sample_ prefix and the trailing lane suffix:
+//
+//   Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
+//     SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
+//     -> SC2620_JS4_G3_Reign_10488923_253GGLLT4
+//
+// It is read off the files rather than parsed out of the dir name, so an
+// unexpected naming variant fails loudly here instead of inside cellranger.
+def sampleNames(fq) {
 
-    def dir = params.fastqs ? "fastqs/" : ""
+    def names = file(fq).list()
+                    .findAll { it ==~ /.*_S\d+_L\d+_R1(_001)?\.f(ast)?q\.gz$/ }
+                    .collect { it.replaceFirst(/_S\d+_L\d+_R1(_001)?\.f(ast)?q\.gz$/, '') }
+                    .unique()
+                    .sort()
+
+    if( !names )
+        error "sample-sheet: no *_S<n>_L<n>_R1_001.fastq.gz files found in ${fq}"
+
+    names
+}
+
+// the same prefix, taken from a single file name
+def sampleFromFile(name) {
+
+    def m = name =~ /^(.+)_S\d+_L\d+_R\d(_001)?\.f(ast)?q\.gz$/
+    m ? m[0][1] : null
+}
+
+// The sheet accepts either the delivery dir or any fastq inside it, whichever
+// is easier to paste. A file resolves to its parent dir, since --fastqs always
+// takes a directory.
+def resolveFastqs(fq, label) {
+
+    def d = file(fq)
+
+    if( !d.exists() )
+        error "sample-sheet: ${label} path does not exist: ${fq}"
+
+    if( d.isDirectory() )
+        return [ fq, sampleNames(fq) ]
+
+    def pfx = sampleFromFile(d.name)
+    if( !pfx )
+        error "sample-sheet: ${label}: cannot read a 10x sample prefix from '${d.name}'. Expected <prefix>_S<n>_L<n>_R1_001.fastq.gz, or give the delivery directory instead."
+
+    [ d.parent.toString(), [ pfx ] ]
+}
+
+
+def readSheet() {
 
     ch_sheet
         | splitCsv( header:true )
         | map { row ->
               def label   = row.label?.trim()
               def library = row.library?.trim() ?: label
+              def fq      = row.fastqs?.trim()
 
-              if( !label )       error "sample-sheet: every row needs a label"
-              if( !row.fastq1 )  error "sample-sheet: ${label} is missing fastq1"
-              if( !row.fastq2 )  error "sample-sheet: ${label} is missing fastq2 ( 10x reads are always paired )"
+              if( !label ) error "sample-sheet: every row needs a label"
+              if( !fq )    error "sample-sheet: ${label} is missing fastqs ( a 10x delivery dir, or any fastq in it )"
 
-              // ATAC reads are R1 + R2 (16bp barcode) + R3, so atac and arc modes
-              // take a third column. gex has no use for it, and a stray fastq3
-              // usually means the wrong --mode.
-              if( row.fastq3?.trim() )
-                  error "sample-sheet: ${label} has fastq3, which only applies to --mode atac / arc. GEX libraries are R1 + R2 only. See --help for the per mode sheet layouts."
-
-              [ [label, library], [ file(dir + row.fastq1.trim()), file(dir + row.fastq2.trim()) ] ]
+              [ [label, library], resolveFastqs(fq, label) ]
           }
         | groupTuple
-        | map { key, pairs ->
-              // sort so lane order does not depend on channel arrival order
-              def sorted = pairs.sort { a, b -> a[0].toString() <=> b[0].toString() }
-              [ key[1], key[0], sorted.collect{ it[0] }, sorted.collect{ it[1] } ]
+        | map { key, entries ->
+              // several rows for one library = the same library sequenced more
+              // than once. cellranger takes both as comma separated lists, and
+              // the prefixes differ per flow cell so every one has to be listed.
+              // dirs are deduped: two rows may name two files in one dir.
+              def dirs    = entries.collect { it[0] }.unique().sort()
+              def samples = entries.collectMany { it[1] }.unique().sort()
+
+              [ key[1], key[0], dirs, samples ]
           }
-        | view { library, label, r1, r2 -> "LIBRARY >> ${library}  ( sample: ${label}, runs: ${r1.size()} )" }
+        | view { library, label, dirs, samples ->
+              "LIBRARY >> ${library}  ( label: ${label}, fastq dirs: ${dirs.size()}, sample: ${samples.join(',')} )" }
 }
 
 

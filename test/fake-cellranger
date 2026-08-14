@@ -2,9 +2,12 @@
 # Stand-in for the cellranger binary, used by CI via --crpath.
 #
 # -stub-run skips the real script block entirely, so the actual command line is
-# never exercised. Pointing --crpath at this script runs the module for real -
-# fastq staging, flag construction, the mv, versions.yml - and records what was
-# asked for so CI can assert on it.
+# never exercised. Pointing --crpath at this script runs the module for real and
+# records what was asked for so CI can assert on it.
+#
+# It also checks the contract that matters most with directory input: that every
+# --sample prefix is actually findable in the --fastqs dirs, which is exactly
+# what real cellranger would fail on.
 
 set -euo pipefail
 
@@ -13,30 +16,44 @@ if [ "${1:-}" = "--version" ] ; then
     exit 0
 fi
 
-ID=""
-FASTQS=""
+ID="" ; FASTQS="" ; SAMPLES=""
 for a in "$@" ; do
     case "$a" in
-        --id=*)      ID="${a#--id=}"      ;;
-        --fastqs=*)  FASTQS="${a#--fastqs=}" ;;
+        --id=*)      ID="${a#--id=}"           ;;
+        --fastqs=*)  FASTQS="${a#--fastqs=}"   ;;
+        --sample=*)  SAMPLES="${a#--sample=}"  ;;
     esac
 done
 
-if [ -z "$ID" ] ; then
-    echo "fake-cellranger: no --id given" >&2
-    exit 1
-fi
+[ -n "$ID" ]     || { echo "fake-cellranger: no --id given"     >&2 ; exit 1 ; }
+[ -n "$FASTQS" ] || { echo "fake-cellranger: no --fastqs given" >&2 ; exit 1 ; }
+
+# every --sample prefix must match reads in at least one --fastqs dir
+IFS=',' read -r -a DIRS    <<< "$FASTQS"
+IFS=',' read -r -a SAMPLE_ARR <<< "$SAMPLES"
+
+for s in "${SAMPLE_ARR[@]}" ; do
+    found=0
+    for d in "${DIRS[@]}" ; do
+        [ -d "$d" ] || { echo "fake-cellranger: not a directory: $d" >&2 ; exit 1 ; }
+        if compgen -G "${d}/${s}_S*_L*_R1_001.fastq.gz" > /dev/null ; then
+            found=1 ; break
+        fi
+    done
+    if [ "$found" -eq 0 ] ; then
+        echo "fake-cellranger: no reads for sample '$s' in any of: $FASTQS" >&2
+        exit 1
+    fi
+done
 
 mkdir -p "${ID}/outs"
 touch "${ID}/outs/web_summary.html"
 touch "${ID}/outs/metrics_summary.csv"
 touch "${ID}/outs/filtered_feature_bc_matrix.h5"
 
-# Record the invocation and the staged fastqs for CI to assert on. These are
-# written outside the task dir because publishDir only publishes files the
-# module declares as outputs, which these deliberately are not.
+# Record the invocation for CI. Written outside the task dir because publishDir
+# only publishes files the module declares as outputs, which this is not.
 if [ -n "${CI_CAPTURE:-}" ] ; then
     mkdir -p "$CI_CAPTURE"
-    printf '%s\n' "$@"   > "${CI_CAPTURE}/${ID}.command.txt"
-    ls "${FASTQS}"       > "${CI_CAPTURE}/${ID}.fastqs.txt"
+    printf '%s\n' "$@" > "${CI_CAPTURE}/${ID}.command.txt"
 fi

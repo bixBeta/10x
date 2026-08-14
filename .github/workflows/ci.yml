@@ -58,7 +58,7 @@ jobs:
           set -euo pipefail
           # 5 sheet rows -> 4 libraries: SS2's two runs pool into one count,
           # SS3's two GEM wells stay separate.
-          for lib in SS1 SS2 SS3_wellA SS3_wellB ; do
+          for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
             test -d "CELLRANGER/$lib" || { echo "missing CELLRANGER/$lib"; exit 1; }
           done
           n=$(ls -1 CELLRANGER | wc -l)
@@ -71,14 +71,6 @@ jobs:
             echo "expected failure for --mode nope" ; exit 1
           fi
           echo "bad mode rejected"
-
-      - name: Rejects fastq3 in gex mode
-        run: |
-          sed '1s/$/,fastq3/; 2s|$|,/tmp/x_R3.fastq.gz|' test/sample-sheet.csv > test/sheet-fastq3.csv
-          if nextflow run . -stub-run -c test/ci.config --sheet test/sheet-fastq3.csv --ref test/ref ; then
-            echo "expected failure for fastq3 in gex mode" ; exit 1
-          fi
-          echo "fastq3 rejected in gex mode"
 
       - name: Real command line (fake cellranger via --crpath)
         env:
@@ -95,20 +87,27 @@ jobs:
           echo "--- command built for SS2 ---"
           cat "$CI_CAPTURE/SS2.command.txt"
 
-          for flag in 'count' '--id=SS2' '--localcores=2' '--localmem=4' \
-                      '--create-bam=false' '--r1-length=28' '--fastqs=fqs' \
+          for flag in 'count' '--id=JS5' '--localcores=2' '--localmem=4' \
+                      '--create-bam=false' '--r1-length=28' \
                       '--transcriptome=/local/workdir/10x_analysis/REFS/Canine/CanFam3_1' ; do
-            grep -qx -- "$flag" "$CI_CAPTURE/SS2.command.txt" || { echo "missing flag: $flag"; exit 1; }
+            grep -qx -- "$flag" "$CI_CAPTURE/JS5.command.txt" || { echo "missing flag: $flag"; exit 1; }
           done
+
+          # two sequencing runs -> both dirs and BOTH sample prefixes, comma joined.
+          # The flow cell is part of the prefix, so they genuinely differ.
+          grep -q -- '--fastqs=.*run1.*,.*run2' "$CI_CAPTURE/JS5.command.txt"
+          grep -q -- '--sample=SC2620_JS5_G3_Sofia_10488923_253GGLLT4,SC2620_JS5_G3_Sofia_10488923_999XYZAB2' "$CI_CAPTURE/JS5.command.txt"
+
+          # single run library gets a single dir and prefix
+          grep -qx -- '--sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4' "$CI_CAPTURE/JS4.command.txt"
           echo "command line OK"
 
-          echo "--- fastqs staged for SS2 (two sequencing runs) ---"
-          cat "$CI_CAPTURE/SS2.fastqs.txt"
-          for f in SS2_S1_L001_R1_001.fastq.gz SS2_S1_L001_R2_001.fastq.gz \
-                   SS2_S1_L002_R1_001.fastq.gz SS2_S1_L002_R2_001.fastq.gz ; do
-            grep -qx -- "$f" "$CI_CAPTURE/SS2.fastqs.txt" || { echo "missing $f"; exit 1; }
-          done
-          echo "lane staging OK"
+          # nothing may be staged or renamed: the dirs go through verbatim
+          grep -q -- '--fastqs=/' "$CI_CAPTURE/JS4.command.txt" || { echo "expected absolute delivery paths"; exit 1; }
+          if grep -q -- '--fastqs=fqs' "$CI_CAPTURE/JS4.command.txt" ; then
+            echo "fastqs were staged, expected pass-through"; exit 1
+          fi
+          echo "pass-through OK"
 
           test -s pipeline_info/software_versions.yml
           grep -q 'cellranger' pipeline_info/software_versions.yml
@@ -122,7 +121,22 @@ jobs:
           rm -rf CELLRANGER "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
             --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --r1length 0
-          if grep -q -- '--r1-length' "$CI_CAPTURE/SS1.command.txt" ; then
+          if grep -q -- '--r1-length' "$CI_CAPTURE/JS4.command.txt" ; then
             echo "expected no --r1-length"; exit 1
           fi
           echo "r1length 0 OK"
+
+      - name: Accepts a fastq file path, not just a dir
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture3
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER "$CI_CAPTURE"
+          FQ=$(ls test/Illumina/run1/Unaligned/Project_10488923/Sample_SC2620_JS4_*/*_R1_001.fastq.gz | head -1)
+          printf 'label,fastqs\nJS4,%s\n' "$FQ" > test/sheet-file.csv
+          nextflow run . -c test/ci.config --sheet test/sheet-file.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4
+          # the file resolved to its parent dir, and the prefix came off the name
+          grep -qx -- "--fastqs=$(dirname "$FQ")" "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4' "$CI_CAPTURE/JS4.command.txt"
+          echo "fastq file path OK"

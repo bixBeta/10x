@@ -1,34 +1,54 @@
 #!/usr/bin/env bash
-# Throwaway inputs for the -stub-run CI check. The fastqs are empty gzip
-# streams and the reference is an empty dir; only the channel logic is tested.
+# Throwaway inputs for CI. Builds 10x delivery dirs with the real naming
+# convention so the --sample derivation is exercised for what it is:
+#
+#   Sample_<prefix>_L<lane>/<prefix>_S<n>_L00<lane>_R{1,2}_001.fastq.gz
+#
+# The fastqs are empty gzip streams; only the naming matters.
 
 set -euo pipefail
 
 HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-FQ="${HERE}/fastq"
+RUN1="${HERE}/Illumina/run1/Unaligned/Project_10488923"
+RUN2="${HERE}/Illumina/run2/Unaligned/Project_10488923"
 REF="${HERE}/ref"
 
-mkdir -p "$FQ" "$REF"
+rm -rf "${HERE}/Illumina"
+mkdir -p "$RUN1" "$RUN2" "$REF"
 echo '{"genomes": ["testgenome"]}' > "$REF/reference.json"
 
-mk () { printf '' | gzip -c > "${FQ}/$1" ; }
+# make_delivery <parent> <prefix> <S-index> <lane>
+make_delivery () {
+    local parent="$1" prefix="$2" sidx="$3" lane="$4"
+    local d="${parent}/Sample_${prefix}_L${lane}"
+    mkdir -p "$d"
+    for r in R1 R2 ; do
+        printf '' | gzip -c > "${d}/${prefix}_S${sidx}_L00${lane}_${r}_001.fastq.gz"
+        : > "${d}/${prefix}_S${sidx}_L00${lane}_${r}_001.md5"
+    done
+    : > "${d}/${prefix}_S${sidx}_L00${lane}.fastp.json"
+    echo "$d"
+}
 
-# SS1: one library, one run
-mk SS1_R1.fastq.gz ; mk SS1_R2.fastq.gz
-# SS2: one library, two sequencing runs -> pooled as L001 + L002
-mk SS2_run1_R1.fastq.gz ; mk SS2_run1_R2.fastq.gz
-mk SS2_run2_R1.fastq.gz ; mk SS2_run2_R2.fastq.gz
-# SS3: two libraries / GEM wells -> two separate counts
-mk SS3_A_R1.fastq.gz ; mk SS3_A_R2.fastq.gz
-mk SS3_B_R1.fastq.gz ; mk SS3_B_R2.fastq.gz
+# JS4: one library, one delivery dir
+JS4=$( make_delivery "$RUN1" "SC2620_JS4_G3_Reign_10488923_253GGLLT4" 3 2 )
+
+# JS5: one library, two sequencing runs. The flow cell is part of the prefix,
+# so the two runs have DIFFERENT sample prefixes and both must be listed.
+JS5a=$( make_delivery "$RUN1" "SC2620_JS5_G3_Sofia_10488923_253GGLLT4" 4 2 )
+JS5b=$( make_delivery "$RUN2" "SC2620_JS5_G3_Sofia_10488923_999XYZAB2" 1 3 )
+
+# JS6: two libraries / GEM wells under one label
+JS6a=$( make_delivery "$RUN1" "SC2620_JS6A_G3_Scooter_10488923_253GGLLT4" 5 2 )
+JS6b=$( make_delivery "$RUN1" "SC2620_JS6B_G3_Scooter_10488923_253GGLLT4" 6 2 )
 
 cat > "${HERE}/sample-sheet.csv" <<EOF
-label,library,fastq1,fastq2
-SS1,,${FQ}/SS1_R1.fastq.gz,${FQ}/SS1_R2.fastq.gz
-SS2,,${FQ}/SS2_run1_R1.fastq.gz,${FQ}/SS2_run1_R2.fastq.gz
-SS2,,${FQ}/SS2_run2_R1.fastq.gz,${FQ}/SS2_run2_R2.fastq.gz
-SS3,SS3_wellA,${FQ}/SS3_A_R1.fastq.gz,${FQ}/SS3_A_R2.fastq.gz
-SS3,SS3_wellB,${FQ}/SS3_B_R1.fastq.gz,${FQ}/SS3_B_R2.fastq.gz
+label,library,fastqs
+JS4,,${JS4}
+JS5,,${JS5a}
+JS5,,${JS5b}
+JS6,JS6_wellA,${JS6a}
+JS6,JS6_wellB,${JS6b}
 EOF
 
 echo "test data written to ${HERE}"

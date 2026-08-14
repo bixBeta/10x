@@ -2,7 +2,7 @@ chemistry       = params.chemistry
 expectCells     = params.expectCells
 forceCells      = params.forceCells
 createBam       = params.createBam
-introns          = params.introns
+introns         = params.introns
 r1length        = params.r1length
 r2length        = params.r2length
 
@@ -22,7 +22,7 @@ process CELLRANGER_COUNT {
     publishDir "CELLRANGER/${library}" , mode: "symlink", overwrite: true , pattern: "outs/**"
 
     input:
-        tuple val(library), val(label), path(r1, stageAs: "R1_??.fastq.gz"), path(r2, stageAs: "R2_??.fastq.gz")
+        tuple val(library), val(label), val(fastqs), val(samples)
         val ref
 
     output:
@@ -35,6 +35,12 @@ process CELLRANGER_COUNT {
 
     script:
 
+    // fastqs are 10x delivery dirs, passed through untouched - no staging, no
+    // renaming. Several runs of the same library become the comma separated
+    // lists cellranger expects, for both the dirs and the sample prefixes.
+    def fastqArg    = fastqs instanceof List ? fastqs.join(',') : "${fastqs}"
+    def sampleArg   = samples instanceof List ? samples.join(',') : "${samples}"
+
     def bamArg      = crMajor >= 8 ? "--create-bam=${createBam}" : ( createBam ? "" : "--no-bam" )
     def r1Arg       = r1length    ? "--r1-length=${r1length}"        : ""
     def r2Arg       = r2length    ? "--r2-length=${r2length}"        : ""
@@ -44,29 +50,14 @@ process CELLRANGER_COUNT {
     def intronArg   = introns != null ? "--include-introns=${introns}" : ""
 
     """
-    # Cell Ranger only accepts bcl2fastq style names, so each input row is
-    # symlinked in as one lane: <library>_S1_L00N_R1_001.fastq.gz
-    mkdir -p fqs
-    lane=0
-    for f in R1_*.gz ; do
-        lane=\$(( lane + 1 ))
-        laneid=\$( printf "L%03d" \$lane )
-        suffix=\${f#R1_}
-
-        ln -s ../"\$f"            "fqs/${library}_S1_\${laneid}_R1_001.fastq.gz"
-        ln -s ../"R2_\${suffix}"  "fqs/${library}_S1_\${laneid}_R2_001.fastq.gz"
-    done
-
-    echo "staged \$lane sequencing run(s) for ${library}"
-
     ${crBin} count \
         --id=${library} \
         --localcores=${task.cpus} \
         --localmem=${task.memory.toGiga()} \
         ${bamArg} ${r1Arg} ${r2Arg} \
         --transcriptome=${ref} \
-        --fastqs=fqs \
-        --sample=${library} \
+        --fastqs=${fastqArg} \
+        --sample=${sampleArg} \
         ${chemArg} ${cellsArg} ${forceArg} ${intronArg}
 
     # lift outs/ up so publishDir and downstream modules see a stable path
