@@ -14,10 +14,12 @@ timeline*.html
 trace*.txt
 dag*.html
 
-# Generated test inputs
+# Generated test inputs (test/make_test_data.sh rebuilds them, CI runs it)
+test/Illumina/
 test/fastq/
 test/ref/
-test/sample-sheet.csv
+test/sample-sheet*.csv
+test/sheet-*.csv
 
 # Vendor tarballs - 10x binaries must never be committed (EULA).
 # Match tarballs only: a rule like `containers/**/cellranger*` would exclude the
