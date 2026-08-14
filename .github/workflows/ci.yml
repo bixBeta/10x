@@ -132,7 +132,9 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf CELLRANGER "$CI_CAPTURE"
-          FQ=$(ls test/Illumina/run1/Unaligned/Project_10488923/Sample_SC2620_JS4_*/*_R1_001.fastq.gz | head -1)
+          # absolute: the pipeline resolves sheet paths against launchDir, so
+          # --fastqs always comes out absolute
+          FQ=$(ls "$PWD"/test/Illumina/run1/Unaligned/Project_10488923/Sample_SC2620_JS4_*/*_R1_001.fastq.gz | head -1)
           printf 'label,fastqs\nJS4,%s\n' "$FQ" > test/sheet-file.csv
           nextflow run . -c test/ci.config --sheet test/sheet-file.csv --ref test/ref \
             --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4
