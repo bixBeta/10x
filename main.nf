@@ -94,22 +94,43 @@ Args:
         | JS4   | JS4_wellB | /local/.../Sample_SC2620_JS4B_..._L2 |
         |-------|-----------|------------------------------------|
 
-        ATAC ( --mode atac, v0.2 ) and MULTIOME ( --mode arc, v0.3 ) use the
-        same directory based sheet. R1 / R2 / R3 live inside the delivery dir,
-        so there is no fastq3 column to fill in. arc adds a type column
-        ( gex | atac ) so one label can carry both libraries.
+        MULTIOME ( --mode arc ): one label carries a Gene Expression library
+        AND a Chromatin Accessibility library, told apart by library_type.
+        They are not counted separately - cellranger-arc takes a libraries.csv
+        naming both, which this pipeline writes for you.
 
-        |-------|-----------|------|------------------------------|
-        | label | library   | type | fastqs                       |
-        |-------|-----------|------|------------------------------|
-        | JS4   | JS4_gex   | gex  | /local/.../Sample_..._GEX_L2  |
-        | JS4   | JS4_atac  | atac | /local/.../Sample_..._ATAC_L2 |
-        |-------|-----------|------|------------------------------|
+        |-------|--------------------------------|-------------------------|
+        | label | fastqs                         | library_type            |
+        |-------|--------------------------------|-------------------------|
+        | JS4   | /local/.../Project_10488522    | Gene Expression         |
+        | JS4   | /local/.../Project_10488522    | Chromatin Accessibility |
+        |-------|--------------------------------|-------------------------|
+
+        becomes JS4_libraries.csv:
+
+            fastqs,sample,library_type
+            /local/.../Project_10488522,SC2619_JS4_BC_MG3_...,Gene Expression
+            /local/.../Project_10488522,SC2619_JS4_MA_...,Chromatin Accessibility
+
+        sample is optional. It is the fastq prefix, and when given it is used
+        verbatim for --sample and for the sample column of libraries.csv. It is
+        only REQUIRED when the fastqs path holds more than one prefix, e.g. a
+        Project_* dir carrying both halves of a multiome pair - one row is one
+        library, so that case is rejected rather than guessed at.
+
+        library_type is optional and defaults to Gene Expression. It takes 10x's
+        own vocabulary, so the value lands in libraries.csv verbatim:
+
+            Gene Expression | Chromatin Accessibility | Antibody Capture
+            CRISPR Guide Capture | Multiplexing Capture | VDJ-T | VDJ-B
+
+        Shorthands are accepted: gex, rna, atac, adt, citeseq, hto, crispr,
+        cmo, cellplex.
         -----------------------------------------------------------
 
     * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
+                       : use 'arc'  for multiome GEX + ATAC
                        : use 'atac' for scATAC                 ( v0.2, not yet implemented )
-                       : use 'arc'  for multiome GEX + ATAC    ( v0.3, not yet implemented )
 
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
@@ -129,13 +150,23 @@ Args:
     * --crpath         : Run a native install instead of the container
                          e.g. --crpath /programs/cellranger-9.0.1/cellranger
     * --container      : Full container override e.g. a local .sif path
+    * --arcversion     : cellranger-arc version, selects the container tag; default <2.2.0>
+    * --arcpath        : Native cellranger-arc install
+                         e.g. --arcpath /programs/cellranger-arc-2.2.0/bin/cellranger-arc
+    * --arccontainer   : Full container override for arc mode
 
-  The command this builds per library:
+  The command this builds, gex mode, one per library:
 
     <crpath|cellranger> count --id=<label> \\
       --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam> --r1-length=<r1length> \\
       --transcriptome=<ref> \\
       --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]>
+
+  arc mode, one per label:
+
+    <arcpath|cellranger-arc> count --id=<label> \\
+      --reference=<ref> --libraries=<label>_libraries.csv \\
+      --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam>
 
 """
 
@@ -173,8 +204,9 @@ GRCh38              :"/local/workdir/10x_analysis/REFS/ATAC/Human/GRCh38",
 GRCm39              :"/local/workdir/10x_analysis/REFS/ATAC/Mouse/GRCm39"]
 
 refDirArc = [
-GRCh38              :"/local/workdir/10x_analysis/REFS/ARC/Human/GRCh38",
-GRCm39              :"/local/workdir/10x_analysis/REFS/ARC/Mouse/GRCm39"]
+CanFam3             :"/local/workdir/10x_analysis/REFS/Canine/arc/CanFam3_Ensembl101annot",
+GRCh38              :"/local/workdir/10x_analysis/REFS/Human/arc/GRCh38",
+GRCm39              :"/local/workdir/10x_analysis/REFS/Mouse/arc/GRCm39"]
 
 
 if( params.listRefs ) {
@@ -209,13 +241,19 @@ if( params.listRefs ) {
 }
 
 include {   CELLRANGER_COUNT         } from './modules/cellranger'
+include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   DUMP_VERSIONS            } from './modules/versions'
 
 
-// allows a user to pass a transcriptome path via --ref, same as --genome elsewhere
-if( refDir.containsKey(params.ref) ){
+// allows a user to pass a reference path via --ref, same as --genome elsewhere.
+// each mode has its own reference set, since gex / atac / arc references differ.
+refMap = params.mode == "arc"  ? refDirArc
+       : params.mode == "atac" ? refDirAtac
+       :                         refDir
 
-    ref = refDir[params.ref]
+if( refMap.containsKey(params.ref) ){
+
+    ref = refMap[params.ref]
 
 } else {
 
@@ -244,17 +282,64 @@ and are counted separately.
 // unexpected naming variant fails loudly here instead of inside cellranger.
 def sampleNames(fq) {
 
-    def names = file(fq).list()
+    // A path may be the Sample_* dir itself, or the Project_* dir above it that
+    // holds Sample_*/ subdirs - both are valid --fastqs values for cellranger,
+    // so look one level down as well.
+    def hits = []
+    [ "${fq}/*_R1*.f*q.gz", "${fq}/*/*_R1*.f*q.gz" ].each { pattern ->
+        def found = file(pattern)
+        if( found instanceof List ) hits.addAll(found)
+        else if( found )            hits.add(found)
+    }
+
+    def names = hits.collect { it.name }
                     .findAll { it ==~ /.*_S\d+_L\d+_R1(_001)?\.f(ast)?q\.gz$/ }
                     .collect { it.replaceFirst(/_S\d+_L\d+_R1(_001)?\.f(ast)?q\.gz$/, '') }
                     .unique()
                     .sort()
 
     if( !names )
-        error "sample-sheet: no *_S<n>_L<n>_R1_001.fastq.gz files found in ${fq}"
+        error "sample-sheet: no *_S<n>_L<n>_R1_001.fastq.gz files found in ${fq} or its immediate subdirectories"
 
     names
 }
+
+// library_type uses 10x's own vocabulary, so the value can be written straight
+// into the libraries.csv that cellranger-arc / cellranger multi consume. Common
+// shorthands are accepted and normalised to the canonical string.
+def libraryType(raw, label) {
+
+    def canonical = [
+        "gene expression"       : "Gene Expression",
+        "gex"                   : "Gene Expression",
+        "rna"                   : "Gene Expression",
+        "antibody capture"      : "Antibody Capture",
+        "antibody"              : "Antibody Capture",
+        "adt"                   : "Antibody Capture",
+        "citeseq"               : "Antibody Capture",
+        "cite-seq"              : "Antibody Capture",
+        "hto"                   : "Antibody Capture",
+        "crispr guide capture"  : "CRISPR Guide Capture",
+        "crispr"                : "CRISPR Guide Capture",
+        "multiplexing capture"  : "Multiplexing Capture",
+        "cmo"                   : "Multiplexing Capture",
+        "cellplex"              : "Multiplexing Capture",
+        "chromatin accessibility": "Chromatin Accessibility",
+        "atac"                  : "Chromatin Accessibility",
+        "vdj-t"                 : "VDJ-T",
+        "vdj-b"                 : "VDJ-B",
+        "vdj"                   : "VDJ"
+    ]
+
+    if( !raw ) return "Gene Expression"
+
+    def hit = canonical[ raw.toLowerCase() ]
+    if( !hit )
+        error "sample-sheet: ${label} has unknown library_type '${raw}'. Use one of: ${canonical.values().unique().sort().join(', ')}"
+
+    hit
+}
+
 
 // the same prefix, taken from a single file name
 def sampleFromFile(name) {
@@ -266,25 +351,49 @@ def sampleFromFile(name) {
 // The sheet accepts either the delivery dir or any fastq inside it, whichever
 // is easier to paste. A file resolves to its parent dir, since --fastqs always
 // takes a directory.
-def resolveFastqs(fq, label) {
+def resolveFastqs(fq, label, given) {
 
     def d = file(fq)
 
     if( !d.exists() )
         error "sample-sheet: ${label} path does not exist: ${fq}"
 
-    if( d.isDirectory() )
-        return [ fq, sampleNames(fq) ]
+    // a file resolves to its parent, since --fastqs takes a directory
+    def dir = d.isDirectory() ? fq : d.parent.toString()
 
-    def pfx = sampleFromFile(d.name)
-    if( !pfx )
-        error "sample-sheet: ${label}: cannot read a 10x sample prefix from '${d.name}'. Expected <prefix>_S<n>_L<n>_R1_001.fastq.gz, or give the delivery directory instead."
+    // An explicit sample column wins: it is what lands in --sample and in
+    // libraries.csv, so the sheet can name it exactly like 10x does.
+    if( given ) {
+        def found = file("${dir}/${given}_S*_L*_R1*.f*q.gz")
+        def any   = (found instanceof List) ? found : (found ? [found] : [])
+        if( !any ) {
+            def sub = file("${dir}/*/${given}_S*_L*_R1*.f*q.gz")
+            any = (sub instanceof List) ? sub : (sub ? [sub] : [])
+        }
+        if( !any )
+            error "sample-sheet: ${label}: no reads for sample '${given}' under ${dir}"
+        return [ dir, [ given ] ]
+    }
 
-    [ d.parent.toString(), [ pfx ] ]
+    if( !d.isDirectory() ) {
+        def pfx = sampleFromFile(d.name)
+        if( !pfx )
+            error "sample-sheet: ${label}: cannot read a 10x sample prefix from '${d.name}'. Expected <prefix>_S<n>_L<n>_R1_001.fastq.gz, or give the delivery directory instead."
+        return [ dir, [ pfx ] ]
+    }
+
+    // One row is one library, so one prefix. A Project_* dir holding several
+    // samples is ambiguous and has to be pinned down with the sample column,
+    // rather than quietly counting the wrong reads together.
+    def names = sampleNames(dir)
+    if( names.size() > 1 )
+        error "sample-sheet: ${label}: ${dir} holds ${names.size()} sample prefixes (${names.join(', ')}). Add a sample column naming the one this row means."
+
+    [ dir, names ]
 }
 
 
-def readSheet() {
+def readRows() {
 
     ch_sheet
         | splitCsv( header:true )
@@ -296,7 +405,29 @@ def readSheet() {
               if( !label ) error "sample-sheet: every row needs a label"
               if( !fq )    error "sample-sheet: ${label} is missing fastqs ( a 10x delivery dir, or any fastq in it )"
 
-              [ [label, library], resolveFastqs(fq, label) ]
+              def ltype = libraryType(row.library_type?.trim(), label)
+              def res   = resolveFastqs(fq, label, row.sample?.trim())
+
+              [ label, library, res[0], res[1], ltype ]
+          }
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------
+GENE EXPRESSION Workflow
+------------------------------------------------------------------------------------------------------------ */
+
+workflow GEX {
+
+    if( ref == null ){
+        error "No reference provided. Use --ref < key or path >, see --listRefs"
+    }
+
+    meta_ch = readRows()
+        | map { label, library, dir, samples, ltype ->
+              if( ltype != "Gene Expression" )
+                  error "sample-sheet: ${label} is '${ltype}'. --mode gex counts Gene Expression only; use --mode arc for multiome."
+              [ [label, library], [ dir, samples ] ]
           }
         | groupTuple
         | map { key, entries ->
@@ -311,26 +442,58 @@ def readSheet() {
           }
         | view { library, label, dirs, samples ->
               "LIBRARY >> ${library}  ( label: ${label}, fastq dirs: ${dirs.size()}, sample: ${samples.join(',')} )" }
-}
-
-
-/* ---------------------------------------------------------------------------------------------------------
-GENE EXPRESSION Workflow
------------------------------------------------------------------------------------------------------------- */
-
-workflow GEX {
-
-    if( ref == null ){
-        error "No reference provided. Use --ref < key or path >, see --listRefs"
-    }
-
-    meta_ch = readSheet()
 
     CELLRANGER_COUNT(meta_ch, ref_ch)
 
     ch_versions = CELLRANGER_COUNT.out.versions.first()
 
     DUMP_VERSIONS(ch_versions.collect())
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------
+MULTIOME Workflow
+
+One label carries a Gene Expression library and a Chromatin Accessibility
+library. They are NOT counted separately: cellranger-arc takes a libraries.csv
+listing both, which is generated per label from the sheet.
+------------------------------------------------------------------------------------------------------------ */
+
+workflow ARC {
+
+    if( ref == null ){
+        error "No reference provided. Use --ref < key or path >, see --listRefs"
+    }
+
+    arc_ch = readRows()
+        | map { label, library, dir, samples, ltype -> [ label, [ dir, samples, ltype ] ] }
+        | groupTuple
+        | map { label, entries ->
+
+              def types = entries.collect { it[2] }.unique()
+
+              def unsupported = types.findAll { !( it in ["Gene Expression", "Chromatin Accessibility"] ) }
+              if( unsupported )
+                  error "arc: ${label} has library_type(s) cellranger-arc cannot take: ${unsupported.join(', ')}"
+
+              if( !types.contains("Gene Expression") )
+                  error "arc: ${label} has no Gene Expression library. Multiome needs both, see --help"
+              if( !types.contains("Chromatin Accessibility") )
+                  error "arc: ${label} has no Chromatin Accessibility library. Multiome needs both, see --help"
+
+              // one libraries.csv row per fastq dir + sample prefix
+              def rows = entries.collectMany { e -> e[1].collect { s -> [ e[0], s, e[2] ] } }
+                                .unique()
+                                .sort { a1, b1 -> a1[2] <=> b1[2] ?: a1[1] <=> b1[1] }
+
+              [ label, rows ]
+          }
+        | view { label, rows ->
+              "MULTIOME >> ${label}  ( libraries: " + rows.collect{ "${it[1]} [${it[2]}]" }.join(' + ') + " )" }
+
+    CELLRANGER_ARC_COUNT(arc_ch, ref_ch)
+
+    DUMP_VERSIONS( CELLRANGER_ARC_COUNT.out.versions.first().collect() )
 }
 
 
@@ -348,7 +511,7 @@ workflow {
 
     else if( params.mode == "arc" ){
 
-        error "arc mode is not implemented yet ( v0.3 )"
+        ARC()
     }
 
     else {

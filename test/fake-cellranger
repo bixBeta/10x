@@ -16,16 +16,49 @@ if [ "${1:-}" = "--version" ] ; then
     exit 0
 fi
 
-ID="" ; FASTQS="" ; SAMPLES=""
+ID="" ; FASTQS="" ; SAMPLES="" ; LIBRARIES=""
 for a in "$@" ; do
     case "$a" in
-        --id=*)      ID="${a#--id=}"           ;;
-        --fastqs=*)  FASTQS="${a#--fastqs=}"   ;;
-        --sample=*)  SAMPLES="${a#--sample=}"  ;;
+        --id=*)         ID="${a#--id=}"               ;;
+        --fastqs=*)     FASTQS="${a#--fastqs=}"       ;;
+        --sample=*)     SAMPLES="${a#--sample=}"      ;;
+        --libraries=*)  LIBRARIES="${a#--libraries=}" ;;
     esac
 done
 
-[ -n "$ID" ]     || { echo "fake-cellranger: no --id given"     >&2 ; exit 1 ; }
+[ -n "$ID" ] || { echo "fake-cellranger: no --id given" >&2 ; exit 1 ; }
+
+# arc form: --libraries csv instead of --fastqs / --sample. Check every row
+# points at reads that exist, which is what real cellranger-arc would fail on.
+if [ -n "$LIBRARIES" ] ; then
+    [ -f "$LIBRARIES" ] || { echo "fake-cellranger: no such libraries csv: $LIBRARIES" >&2 ; exit 1 ; }
+
+    head -1 "$LIBRARIES" | grep -qx 'fastqs,sample,library_type' \
+        || { echo "fake-cellranger: bad libraries header: $(head -1 "$LIBRARIES")" >&2 ; exit 1 ; }
+
+    tail -n +2 "$LIBRARIES" | while IFS=',' read -r d s t ; do
+        [ -n "$d" ] || continue
+        [ -d "$d" ] || { echo "fake-cellranger: not a directory: $d" >&2 ; exit 1 ; }
+        if ! compgen -G "${d}/${s}_S*_L*_R1_001.fastq.gz" > /dev/null \
+           && ! compgen -G "${d}/*/${s}_S*_L*_R1_001.fastq.gz" > /dev/null ; then
+            echo "fake-cellranger: no reads for sample '$s' under $d" >&2 ; exit 1
+        fi
+        case "$t" in
+            "Gene Expression"|"Chromatin Accessibility") : ;;
+            *) echo "fake-cellranger: unexpected library_type '$t'" >&2 ; exit 1 ;;
+        esac
+    done
+
+    mkdir -p "${ID}/outs"
+    touch "${ID}/outs/web_summary.html" "${ID}/outs/summary.csv"
+    if [ -n "${CI_CAPTURE:-}" ] ; then
+        mkdir -p "$CI_CAPTURE"
+        printf '%s\n' "$@" > "${CI_CAPTURE}/${ID}.command.txt"
+        cp "$LIBRARIES"      "${CI_CAPTURE}/${ID}.libraries.csv"
+    fi
+    exit 0
+fi
+
 [ -n "$FASTQS" ] || { echo "fake-cellranger: no --fastqs given" >&2 ; exit 1 ; }
 
 # every --sample prefix must match reads in at least one --fastqs dir

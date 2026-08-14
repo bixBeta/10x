@@ -142,3 +142,58 @@ jobs:
           grep -qx -- "--fastqs=$(dirname "$FQ")" "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- '--sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4' "$CI_CAPTURE/JS4.command.txt"
           echo "fastq file path OK"
+
+      - name: Multiome (arc) builds libraries.csv
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-arc
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_ARC "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --mode arc \
+            --sheet test/sample-sheet-arc.csv \
+            --ref   CanFam3 \
+            --arcpath "$PWD/test/fake-cellranger" \
+            --localcores 2 --localmem 4
+
+          echo "--- JS4_libraries.csv ---"
+          cat "$CI_CAPTURE/JS4.libraries.csv"
+
+          # header plus exactly the two libraries, typed the 10x way
+          test "$(wc -l < "$CI_CAPTURE/JS4.libraries.csv")" -eq 3
+          head -1 "$CI_CAPTURE/JS4.libraries.csv" | grep -qx 'fastqs,sample,library_type'
+          grep -q ',SC2619_JS4_BC_MG3_8Healthy_10488522_25FWVCLT4,Gene Expression$'         "$CI_CAPTURE/JS4.libraries.csv"
+          grep -q ',SC2619_JS4_MA_8Healthy_10488522_23C52HLT4,Chromatin Accessibility$'     "$CI_CAPTURE/JS4.libraries.csv"
+
+          echo "--- command built for JS4 ---"
+          cat "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- 'count'                                                                   "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--id=JS4'                                                                "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--reference=/local/workdir/10x_analysis/REFS/Canine/arc/CanFam3_Ensembl101annot' "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--libraries=JS4_libraries.csv'                                           "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--create-bam=false'                                                      "$CI_CAPTURE/JS4.command.txt"
+          # arc takes --reference, never --transcriptome / --fastqs / --sample
+          if grep -qE -- '--(transcriptome|fastqs|sample)=' "$CI_CAPTURE/JS4.command.txt" ; then
+            echo "arc command must not carry gex-only flags"; exit 1
+          fi
+
+          # and the csv is kept next to the results
+          test -f CELLRANGER_ARC/JS4/JS4_libraries.csv
+          echo "arc OK"
+
+      - name: Ambiguous Project dir is rejected
+        run: |
+          set -euo pipefail
+          if nextflow run . -c test/ci.config --sheet test/sample-sheet-ambiguous.csv --ref test/ref \
+               --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 ; then
+            echo "expected failure: two prefixes under one path with no sample column"; exit 1
+          fi
+          echo "ambiguity rejected"
+
+      - name: Rejects an ATAC library in gex mode
+        run: |
+          set -euo pipefail
+          if nextflow run . -c test/ci.config --sheet test/sample-sheet-arc.csv --ref test/ref \
+               --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 ; then
+            echo "expected failure: Chromatin Accessibility in gex mode"; exit 1
+          fi
+          echo "wrong library_type rejected"
