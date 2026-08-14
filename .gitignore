@@ -8,6 +8,7 @@ work/
 # repo root: git sets core.ignorecase on macOS, so a bare `CELLRANGER/` also
 # excludes modules/cellranger/.
 /CELLRANGER/
+/CELLRANGER_ARC/
 /pipeline_info/
 report*.html
 timeline*.html
