@@ -108,7 +108,6 @@ back when the sheet listed individual files. `arc` adds a `type` column
 | `--sheet` | `sample-sheet.csv` | |
 | `--mode` | `gex` | `gex`, `atac`, `arc` |
 | `--ref` | — | key from `--listRefs`, or a path to a transcriptome dir |
-| `--fastqs` | — | fastqs live in `fastqs/` in the project dir |
 | `--chemistry` | `auto` | |
 | `--expectCells` / `--forceCells` | — | |
 | `--createBam` | `false` | |
@@ -122,16 +121,16 @@ back when the sheet listed individual files. `arc` adds a `type` column
 | `--crpath` | — | run a native install, e.g. `/programs/cellranger-9.0.1/cellranger` |
 | `--container` | — | full override, e.g. a local `.sif` |
 
-Outputs land in `CELLRANGER/<library>/outs` and `pipeline_info/`.
+Outputs land in `CELLRANGER/<label>/outs` and `pipeline_info/`.
 
 Every flag in the usual invocation is a param, and the command built per
 library is:
 
 ```bash
-<crpath|cellranger> count --id=<library> \
+<crpath|cellranger> count --id=<label> \
   --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam> --r1-length=<r1length> \
   --transcriptome=<ref> \
-  --fastqs=<staged fastqs for this library>
+  --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]>
 ```
 
 `--localcores` and `--localmem` set the Nextflow reservation *and* the Cell
