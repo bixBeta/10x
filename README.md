@@ -12,8 +12,8 @@
 | mode | tool | status |
 |---|---|---|
 | `gex` | `cellranger count` | working |
+| `arc` | `cellranger-arc count` | working |
 | `atac` | `cellranger-atac count` | v0.2 |
-| `arc` | `cellranger-arc count` | v0.3 |
 
 ## Usage
 
@@ -87,18 +87,54 @@ JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_Scooter_10488923_253GGLLT4_L2
 
 ### Columns per mode
 
-| mode | columns | status |
+| column | required | notes |
 |---|---|---|
-| `gex` | `label`, `library`*, `fastqs` | working |
-| `atac` | `label`, `library`*, `fastqs` | v0.2 |
-| `arc` | `label`, `library`*, `type`, `fastqs` | v0.3 |
+| `label` | yes | your short name; becomes `--id` and the output folder |
+| `fastqs` | yes | delivery dir, or any fastq in it |
+| `library` | no | one GEM well; defaults to `label` |
+| `sample` | only if ambiguous | the fastq prefix; required when the path holds more than one |
+| `library_type` | no | defaults to `Gene Expression` |
 
-\* optional — defaults to `label`.
+`library_type` uses 10x's own vocabulary, so it lands in `libraries.csv`
+verbatim: `Gene Expression`, `Chromatin Accessibility`, `Antibody Capture`,
+`CRISPR Guide Capture`, `Multiplexing Capture`, `VDJ-T`, `VDJ-B`. Shorthands
+are accepted (`gex`, `rna`, `atac`, `adt`, `citeseq`, `hto`, `crispr`, `cmo`,
+`cellplex`).
 
-ATAC and multiome use the same sheet. R1/R2/R3 all live inside the delivery
-directory, so there is no `fastq3` column to fill in — that column existed only
-back when the sheet listed individual files. `arc` adds a `type` column
-(`gex` | `atac`) so one label can carry both libraries.
+R1/R2/R3 all live inside the delivery directory, so there is no `fastq3`
+column — that existed only back when the sheet listed individual files.
+
+### Multiome (`--mode arc`)
+
+One label carries a Gene Expression library and a Chromatin Accessibility
+library. They are not counted separately: `cellranger-arc` takes a
+`libraries.csv` naming both, which the pipeline writes for you.
+
+```csv
+label,fastqs,sample,library_type
+JS4,/local/.../Project_10488522,SC2619_JS4_BC_MG3_8Healthy_10488522_25FWVCLT4,Gene Expression
+JS4,/local/.../Project_10488522,SC2619_JS4_MA_8Healthy_10488522_23C52HLT4,Chromatin Accessibility
+```
+
+becomes `JS4_libraries.csv`, published next to the results:
+
+```csv
+fastqs,sample,library_type
+/local/.../Project_10488522,SC2619_JS4_BC_MG3_8Healthy_10488522_25FWVCLT4,Gene Expression
+/local/.../Project_10488522,SC2619_JS4_MA_8Healthy_10488522_23C52HLT4,Chromatin Accessibility
+```
+
+then:
+
+```bash
+cellranger-arc count --id=JS4 --reference=<ref> --libraries=JS4_libraries.csv \
+  --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam>
+```
+
+Note both rows point at the same Project directory, which holds *both*
+libraries — so the `sample` column is required here. One row is one library, and
+a path yielding several prefixes is rejected rather than guessed at. Outputs
+land in `CELLRANGER_ARC/<label>/`.
 
 ## Params
 
@@ -120,6 +156,9 @@ back when the sheet listed individual files. `arc` adds a `type` column
 | `--crversion` | `9.0.1` | Cell Ranger version, selects the container tag |
 | `--crpath` | — | run a native install, e.g. `/programs/cellranger-9.0.1/cellranger` |
 | `--container` | — | full override, e.g. a local `.sif` |
+| `--arcversion` | `2.2.0` | cellranger-arc version, selects the container tag |
+| `--arcpath` | — | native arc install, e.g. `/programs/cellranger-arc-2.2.0/bin/cellranger-arc` |
+| `--arccontainer` | — | full override for arc mode |
 
 Outputs land in `CELLRANGER/<label>/outs` and `pipeline_info/`.
 
