@@ -197,3 +197,30 @@ jobs:
             echo "expected failure: Chromatin Accessibility in gex mode"; exit 1
           fi
           echo "wrong library_type rejected"
+
+      - name: Native install runs uncontainerised (singularity left enabled)
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-native
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER CELLRANGER_ARC "$CI_CAPTURE"
+
+          # No singularity on the runner, and test/native.config deliberately
+          # does NOT disable it. If --crpath still tried to containerise, the
+          # task would fail here instead of running on the host.
+          command -v singularity && { echo "singularity present, test is not meaningful"; exit 1; } || true
+
+          nextflow run . -c test/native.config \
+            --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" \
+            --localcores 2 --localmem 4
+          grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
+          echo "native gex OK"
+
+          rm -rf CELLRANGER_ARC
+          nextflow run . -c test/native.config --mode arc \
+            --sheet test/sample-sheet-arc.csv --ref CanFam3 \
+            --arcpath "$PWD/test/fake-cellranger" \
+            --localcores 2 --localmem 4
+          grep -qx -- '--libraries=JS4_libraries.csv' "$CI_CAPTURE/JS4.command.txt"
+          echo "native arc OK"
