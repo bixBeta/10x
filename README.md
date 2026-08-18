@@ -148,8 +148,19 @@ nextflow run https://github.com/bixBeta/10x -r main \
   --sheet sample-sheet.csv --ref CanFam3_1
 ```
 
-Add `-c` with `singularity.enabled = false`, or run it as-is — the container is
-only pulled when a process actually needs it.
+Nothing else is needed: giving `--crpath` (or `--arcpath` for multiome) leaves
+that process's `container` unset, so it runs on the host even with Singularity
+enabled. A native path like `/programs/...` does not exist inside the image and
+is not bind-mounted, so running it in a container could never have worked — CI
+checks this by running with Singularity enabled on a machine that has none.
+
+For multiome:
+
+```bash
+nextflow run https://github.com/bixBeta/10x -r main --mode arc \
+  --arcpath /programs/cellranger-arc-2.2.0/bin/cellranger-arc \
+  --sheet sample-sheet-arc.csv --ref CanFam3 --localcores 16 --localmem 64
+```
 
 ## Cell Ranger version
 
