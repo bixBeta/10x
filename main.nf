@@ -282,21 +282,58 @@ if( params.listPrograms ) {
     exit 0
 }
 
-// 10x reference MAP  ( /local/workdir/10x_analysis/REFS )
-refDir = [
-CanFam3_1           :"/local/workdir/10x_analysis/REFS/Canine/CanFam3_1",
-GRCh38              :"/local/workdir/10x_analysis/REFS/Human/GRCh38",
-GRCm39              :"/local/workdir/10x_analysis/REFS/Mouse/GRCm39"]
+// 10x reference MAP
+refsBase = "/local/workdir/10x_analysis/REFS"
 
-// ATAC / ARC references, wired up when those modes land
+refDir = [
+Apoculata_stonyCoral :"${refsBase}/Apoculata_stonyCoral",
+Canine               :"${refsBase}/Canine",
+Combo_Human_Mouse    :"${refsBase}/Combo_Human_Mouse",
+Feline               :"${refsBase}/Feline",
+Horse                :"${refsBase}/Horse",
+Human                :"${refsBase}/Human",
+MAIZE                :"${refsBase}/MAIZE",
+Mouse                :"${refsBase}/Mouse",
+Nematostella         :"${refsBase}/Nematostella"]
+
+// ATAC / ARC references
 refDirAtac = [
-GRCh38              :"/local/workdir/10x_analysis/REFS/ATAC/Human/GRCh38",
-GRCm39              :"/local/workdir/10x_analysis/REFS/ATAC/Mouse/GRCm39"]
+Canine               :"${refsBase}/Canine/atac",
+Human                :"${refsBase}/Human/atac",
+Mouse                :"${refsBase}/Mouse/atac"]
 
 refDirArc = [
-CanFam3             :"/local/workdir/10x_analysis/REFS/Canine/arc/CanFam3_Ensembl101annot",
-GRCh38              :"/local/workdir/10x_analysis/REFS/Human/arc/GRCh38",
-GRCm39              :"/local/workdir/10x_analysis/REFS/Mouse/arc/GRCm39"]
+CanFam3              :"${refsBase}/Canine/arc/CanFam3_Ensembl101annot",
+Canine               :"${refsBase}/Canine/arc",
+Human                :"${refsBase}/Human/arc",
+Mouse                :"${refsBase}/Mouse/arc"]
+
+
+// A cellranger reference is a directory holding reference.json. A key that
+// points at a parent - a species dir holding several builds - would only fail
+// much later inside cellranger, so say so here and name the builds found.
+def checkReference(ref, what) {
+
+    if( workflow.stubRun ) return
+
+    def d = file(ref)
+
+    if( !d.exists() )
+        error "No ${what} reference at: ${ref}\n    See --listRefs, or give a full path with --ref."
+
+    if( file("${ref}/reference.json").exists() ) return
+
+    def kids = file("${ref}/*/reference.json")
+    def builds = ( kids instanceof List ? kids : ( kids ? [kids] : [] ) )
+                    .collect { it.parent.name }.sort()
+
+    if( builds )
+        error """${ref} is not a reference itself, it holds ${builds.size()}:
+    ${builds.join(', ')}
+    Point --ref at one of them, e.g. --ref ${ref}/${builds[0]}"""
+
+    log.warn "[ref] no reference.json under ${ref} - passing it to ${what} as given"
+}
 
 
 if( params.listRefs ) {
@@ -510,6 +547,7 @@ GENE EXPRESSION Workflow
 workflow GEX {
 
     checkEngine(params.crengine, params.crbin, params.crimage, "cellranger")
+    checkReference(ref, "cellranger")
 
     if( ref == null ){
         error "No reference provided. Use --ref < key or path >, see --listRefs"
@@ -554,6 +592,7 @@ listing both, which is generated per label from the sheet.
 workflow ARC {
 
     checkEngine(params.arcengine, params.arcbin, params.arcimage, "cellranger-arc")
+    checkReference(ref, "cellranger-arc")
 
     if( ref == null ){
         error "No reference provided. Use --ref < key or path >, see --listRefs"

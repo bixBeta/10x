@@ -19,6 +19,7 @@ dag*.html
 test/Illumina/
 test/fastq/
 test/ref/
+test/refparent/
 test/sample-sheet*.csv
 test/sheet-*.csv
 

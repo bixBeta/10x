@@ -16,6 +16,7 @@ REF="${HERE}/ref"
 rm -rf "${HERE}/Illumina"
 mkdir -p "$RUN1" "$RUN2" "$REF"
 echo '{"genomes": ["testgenome"]}' > "$REF/reference.json"
+rm -rf "${HERE}/refparent"
 
 # make_delivery <parent> <prefix> <S-index> <lane>
 make_delivery () {

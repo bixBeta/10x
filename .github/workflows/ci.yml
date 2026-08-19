@@ -87,6 +87,26 @@ jobs:
           echo "$out" | grep -q  '/programs/cellranger-9.0.1/cellranger'        || { echo "$out" | tail -20; exit 1; }
           echo "engine selection OK"
 
+      - name: Reference must be a reference, not a parent dir
+        run: |
+          set -euo pipefail
+          # a species dir holding builds is named as such, with the builds listed
+          mkdir -p test/refparent/CanFam3_1 test/refparent/CanFam4
+          echo '{}' > test/refparent/CanFam3_1/reference.json
+          echo '{}' > test/refparent/CanFam4/reference.json
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv \
+                  --ref "$PWD/test/refparent" --crpath "$PWD/test/fake-cellranger" \
+                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+          echo "$out" | grep -q 'is not a reference itself, it holds 2' || { echo "$out" | tail -20; exit 1; }
+          echo "$out" | grep -q 'CanFam3_1, CanFam4' || { echo "$out" | tail -20; exit 1; }
+
+          # a missing reference is named too
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv \
+                  --ref /no/such/ref --crpath "$PWD/test/fake-cellranger" \
+                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+          echo "$out" | grep -q 'No cellranger reference at' || { echo "$out" | tail -20; exit 1; }
+          echo "reference checks OK"
+
       - name: Missing sif fails with a clear message
         run: |
           set -euo pipefail
