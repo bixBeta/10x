@@ -1,7 +1,7 @@
 createBam       = params.createBam
 
-// binary: a native install via --arcpath, otherwise whatever is on PATH in the container
-arcBin          = params.arcpath ?: "cellranger-arc"
+// resolved in nextflow.config from --arcpath, or --arcversion + --programs
+arcBin          = params.arcbin
 
 
 process CELLRANGER_ARC_COUNT {

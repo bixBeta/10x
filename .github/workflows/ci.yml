@@ -56,6 +56,35 @@ jobs:
       - name: List references
         run: nextflow run . --listRefs
 
+      - name: List programs
+        run: nextflow run . --listPrograms
+
+      - name: Missing local install fails with a clear message
+        run: |
+          set -euo pipefail
+          # no --crpath, and /programs/cellranger-9.0.1 does not exist here
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref 2>&1) && {
+            echo "expected failure for a missing cellranger install"; exit 1; }
+          echo "$out" | grep -q 'No cellranger found at' || { echo "$out" | tail -20; echo "wrong error"; exit 1; }
+          echo "missing install rejected"
+
+      - name: Version resolves to the conventional path
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-ver
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER "$CI_CAPTURE"
+          # --programs + --crversion build the path, no --crpath needed
+          mkdir -p fakeprograms/cellranger-8.0.1
+          cp test/fake-cellranger fakeprograms/cellranger-8.0.1/cellranger
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --programs "$PWD/fakeprograms" --crversion 8.0.1 \
+            --localcores 2 --localmem 4
+          grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
+          # cellranger 8 still takes --create-bam, not --no-bam
+          grep -qx -- '--create-bam=false' "$CI_CAPTURE/JS4.command.txt"
+          echo "version path resolution OK"
+
       - name: GEX stub run
         run: |
           nextflow run . -stub-run -c test/ci.config \

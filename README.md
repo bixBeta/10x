@@ -153,12 +153,12 @@ land in `CELLRANGER_ARC/<label>/`.
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `180` | `--localmem` in GB **and** the memory reserved |
 | `--maxforks` | `2` | concurrent tasks **per process** — 2 means 2 Cell Ranger runs at once |
-| `--crversion` | `9.0.1` | Cell Ranger version, selects the container tag |
-| `--crpath` | — | run a native install, e.g. `/programs/cellranger-9.0.1/cellranger` |
-| `--container` | — | full override, e.g. a local `.sif` |
-| `--arcversion` | `2.2.0` | cellranger-arc version, selects the container tag |
-| `--arcpath` | — | native arc install, e.g. `/programs/cellranger-arc-2.2.0/bin/cellranger-arc` |
-| `--arccontainer` | — | full override for arc mode |
+| `--crversion` | `9.0.1` | → `/programs/cellranger-<v>/cellranger` |
+| `--arcversion` | `2.2.0` | → `/programs/cellranger-arc-<v>/bin/cellranger-arc` |
+| `--programs` | `/programs` | where the installs live |
+| `--crpath` | — | full path to the binary; overrides `--crversion` |
+| `--arcpath` | — | full path to the arc binary; overrides `--arcversion` |
+| `--container` / `--arccontainer` | — | opt in to running inside an image |
 
 Outputs land in `CELLRANGER/<label>/outs` and `pipeline_info/`.
 
@@ -181,30 +181,47 @@ Every process retries a failed task twice before the run stops
 `finish` lets tasks already running complete rather than killing them, so a
 late failure does not throw away hours of work on the other libraries.
 
-### Running the native install instead of the container
+## 10x software
 
-On a server where Cell Ranger is already deployed under `/programs`, skip the
-container entirely:
+The pipeline runs **your local install** — nothing is pulled and no container is
+involved unless you ask for one. Give it a version and the path is built by
+convention:
 
-```bash
-nextflow run https://github.com/bixBeta/10x -r main \
-  --crpath /programs/cellranger-9.0.1/cellranger \
-  --sheet sample-sheet.csv --ref CanFam3_1
-```
+| param | default | resolves to |
+|---|---|---|
+| `--crversion` | `9.0.1` | `/programs/cellranger-9.0.1/cellranger` |
+| `--arcversion` | `2.2.0` | `/programs/cellranger-arc-2.2.0/bin/cellranger-arc` |
 
-Nothing else is needed: giving `--crpath` (or `--arcpath` for multiome) leaves
-that process's `container` unset, so it runs on the host even with Singularity
-enabled. A native path like `/programs/...` does not exist inside the image and
-is not bind-mounted, so running it in a container could never have worked — CI
-checks this by running with Singularity enabled on a machine that has none.
+Note the two layouts differ: `cellranger` keeps its executable at the top of the
+install directory, `cellranger-arc` keeps it in `bin/`. The pipeline knows this.
 
-For multiome:
+See what is installed:
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --mode arc \
-  --arcpath /programs/cellranger-arc-2.2.0/bin/cellranger-arc \
-  --sheet sample-sheet-arc.csv --ref CanFam3 --localcores 16 --localmem 64
+nextflow run https://github.com/bixBeta/10x -r main --listPrograms
 ```
+
+Pick a version, or point at a binary directly:
+
+```bash
+nextflow run https://github.com/bixBeta/10x -r main --crversion 8.0.1 --sheet sample-sheet.csv --ref CanFam3_1
+```
+
+```bash
+nextflow run https://github.com/bixBeta/10x -r main --crpath /home/me/builds/cellranger --sheet sample-sheet.csv --ref CanFam3_1
+```
+
+A different site layout is `--programs /opt/apps`.
+
+The resolved binary is checked before any work starts, so an uninstalled version
+fails immediately and tells you what *is* installed, rather than dying inside the
+first task.
+
+### Containers (optional)
+
+Only if you want one — pass `--container` (or `--arccontainer` for multiome)
+with a `.sif` path or a `docker://` URI. Nothing is pulled otherwise. Cell Ranger
+is licensed software, so any image you build must not be shared publicly.
 
 ## Cell Ranger version
 

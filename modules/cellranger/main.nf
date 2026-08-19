@@ -6,8 +6,8 @@ introns         = params.introns
 r1length        = params.r1length
 r2length        = params.r2length
 
-// binary: a native install via --crpath, otherwise whatever is on PATH in the container
-crBin           = params.crpath ?: "cellranger"
+// resolved in nextflow.config from --crpath, or --crversion + --programs
+crBin           = params.crbin
 
 // Cell Ranger 8 dropped --no-bam in favour of a mandatory --create-bam
 crMajor         = params.crversion.tokenize('.')[0] as Integer
