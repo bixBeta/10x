@@ -74,15 +74,25 @@ jobs:
       - name: Engine is reported and forced correctly
         run: |
           set -euo pipefail
-          # the banner reports the resolved engine and image/binary
+          # the banner reports the resolved engine and image/binary.
+          # set +e around the capture so a failing run prints instead of
+          # aborting the step silently
+          set +e
           out=$(nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
                   --sifdir /shared/sif 2>&1)
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ] ; then echo "$out" | tail -40 ; exit 1 ; fi
           echo "$out" | grep -qE 'engine +: singularity'            || { echo "$out" | tail -20; exit 1; }
           echo "$out" | grep -q  '/shared/sif/cellranger-9.0.1.sif' || { echo "$out" | tail -20; exit 1; }
 
           # a binary path forces local for that tool
+          set +e
           out=$(nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
                   --crpath /programs/cellranger-9.0.1/cellranger 2>&1)
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ] ; then echo "$out" | tail -40 ; exit 1 ; fi
           echo "$out" | grep -qE 'engine +: local'                              || { echo "$out" | tail -20; exit 1; }
           echo "$out" | grep -q  '/programs/cellranger-9.0.1/cellranger'        || { echo "$out" | tail -20; exit 1; }
           echo "engine selection OK"
