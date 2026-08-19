@@ -113,6 +113,8 @@ mkdir -p "${ID}/outs"
 touch "${ID}/outs/web_summary.html"
 touch "${ID}/outs/metrics_summary.csv"
 touch "${ID}/outs/filtered_feature_bc_matrix.h5"
+# real cellranger writes this, and aggr consumes it
+touch "${ID}/outs/molecule_info.h5"
 
 # Record the invocation for CI. Written outside the task dir because publishDir
 # only publishes files the module declares as outputs, which this is not.
