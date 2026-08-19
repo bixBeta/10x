@@ -29,6 +29,10 @@
 #  the list with SIF_BINDS, e.g.
 #      SIF_BINDS="/workdir /local /programs /fs" bash build-sif.sh ...
 #  As a last resort apptainer build also takes --no-mount bind-paths.
+#
+#  For the same reason the tarball is staged at /opt, not /tmp: the host /tmp is
+#  bind mounted over the container's during %post, hiding anything %files put
+#  there.
 # =============================================================================
 
 set -euo pipefail
@@ -111,8 +115,10 @@ From: ubuntu:22.04
         mkdir -p "\${ROOT}\${d}"
     done
 
+# NOT /tmp: apptainer bind mounts the host /tmp during %post, which would hide
+# whatever %files put there. /opt is a plain directory in the image.
 %files
-    ${TARBALL} /tmp/tool.tar.gz
+    ${TARBALL} /opt/tool.tar.gz
 
 %post
     # keep the mount points in the finished image, for run time binds
@@ -126,8 +132,8 @@ From: ubuntu:22.04
         bash ca-certificates procps zlib1g libbz2-1.0 liblzma5
     rm -rf /var/lib/apt/lists/*
 
-    tar -xzf /tmp/tool.tar.gz -C /opt
-    rm -f /tmp/tool.tar.gz
+    tar -xzf /opt/tool.tar.gz -C /opt
+    rm -f /opt/tool.tar.gz
 
     test -x "/opt/${TOOL}-${VERSION}/${TOOL}" \\
       || test -x "/opt/${TOOL}-${VERSION}/bin/${TOOL}" \\
