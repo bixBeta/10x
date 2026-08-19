@@ -38,11 +38,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         liblzma5 \
     && rm -rf /var/lib/apt/lists/*
 
+# Layouts differ between the tools: cellranger puts its executable at the top of
+# the extracted dir, cellranger-arc / -atac put it in bin/. Accept either, and
+# fail here rather than shipping an image whose binary is not on PATH.
 RUN --mount=type=bind,source=tool.tar.gz,target=/tmp/tool.tar.gz \
     tar -xzf /tmp/tool.tar.gz -C /opt \
-    && test -x "/opt/${TOOL}-${VERSION}/${TOOL}"
+    && ( test -x "/opt/${TOOL}-${VERSION}/${TOOL}" \
+      || test -x "/opt/${TOOL}-${VERSION}/bin/${TOOL}" ) \
+    && ls -l "/opt/${TOOL}-${VERSION}"
 
-ENV PATH="/opt/${TOOL}-${VERSION}:${PATH}"
+ENV PATH="/opt/${TOOL}-${VERSION}:/opt/${TOOL}-${VERSION}/bin:${PATH}"
 
 LABEL org.opencontainers.image.title="${TOOL}-base" \
       org.opencontainers.image.version="${VERSION}" \
