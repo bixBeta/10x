@@ -189,7 +189,7 @@ jobs:
           rm -rf CELLRANGER "$CI_CAPTURE"
           nextflow run . -c test/ci.config \
             --sheet test/sample-sheet.csv \
-            --ref   /local/workdir/10x_analysis/REFS/Canine/CanFam3_1 \
+            --ref   "$PWD/test/ref" \
             --crpath "$PWD/test/fake-cellranger" \
             --localcores 2 --localmem 4
 
@@ -198,7 +198,7 @@ jobs:
 
           for flag in 'count' '--id=JS5' '--localcores=2' '--localmem=4' \
                       '--create-bam=false' '--r1-length=28' \
-                      '--transcriptome=/local/workdir/10x_analysis/REFS/Canine/CanFam3_1' ; do
+                      "--transcriptome=$PWD/test/ref" ; do
             grep -qx -- "$flag" "$CI_CAPTURE/JS5.command.txt" || { echo "missing flag: $flag"; exit 1; }
           done
 
@@ -261,7 +261,7 @@ jobs:
           export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
           nextflow run . -c test/ci.config --mode arc \
             --sheet test/sample-sheet-arc.csv \
-            --ref   CanFam3 \
+            --ref   "$PWD/test/ref" \
             --arcpath "$PWD/test/fake-cellranger" \
             --localcores 2 --localmem 4
 
@@ -278,7 +278,7 @@ jobs:
           cat "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- 'count'                                                                   "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- '--id=JS4'                                                                "$CI_CAPTURE/JS4.command.txt"
-          grep -qx -- '--reference=/local/workdir/10x_analysis/REFS/Canine/arc/CanFam3_Ensembl101annot' "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- "--reference=$PWD/test/ref" "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- '--libraries=JS4_libraries.csv'                                           "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- '--create-bam=false'                                                      "$CI_CAPTURE/JS4.command.txt"
           # arc takes --reference, never --transcriptome / --fastqs / --sample
@@ -330,7 +330,7 @@ jobs:
           rm -rf CELLRANGER_ARC
           export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
           nextflow run . -c test/native.config --mode arc \
-            --sheet test/sample-sheet-arc.csv --ref CanFam3 \
+            --sheet test/sample-sheet-arc.csv --ref "$PWD/test/ref" \
             --arcpath "$PWD/test/fake-cellranger" \
             --localcores 2 --localmem 4
           grep -qx -- '--libraries=JS4_libraries.csv' "$CI_CAPTURE/JS4.command.txt"
