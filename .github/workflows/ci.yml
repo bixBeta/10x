@@ -60,20 +60,24 @@ jobs:
         run: |
           set -euo pipefail
           # default engine is singularity: the container directive must point at
-          # <sifdir>/<tool>-<version>.sif, and nothing may reference ghcr.io
-          cfg=$(nextflow config . --sifdir /shared/sif --crversion 9.0.1)
-          echo "$cfg" | grep -q "/shared/sif/cellranger-9.0.1.sif" || {
+          # <sifdir>/<tool>-<version>.sif, and nothing may reference a registry
+          cfg=$(nextflow config .)
+          echo "$cfg" | grep -q "/local/workdir/singularity/cellranger-9.0.1.sif" || {
             echo "$cfg" | grep -i container; echo "sif path not resolved"; exit 1; }
+          echo "$cfg" | grep -q "/local/workdir/singularity/cellranger-arc-2.2.0.sif" || {
+            echo "arc sif not resolved"; exit 1; }
           if echo "$cfg" | grep -q 'ghcr.io' ; then
-            echo "config still references ghcr.io"; exit 1
+            echo "config still references a registry"; exit 1
           fi
 
-          # arc gets its own image
-          cfg=$(nextflow config . --sifdir /shared/sif --arcversion 2.2.0)
-          echo "$cfg" | grep -q "/shared/sif/cellranger-arc-2.2.0.sif" || { echo "arc sif not resolved"; exit 1; }
+          # --sifdir relocates both images
+          printf "params.sifdir = '/shared/sif'\n" > test/sif.config
+          cfg=$(nextflow config . -c test/sif.config)
+          echo "$cfg" | grep -q "/shared/sif/cellranger-9.0.1.sif" || { echo "sifdir not honoured"; exit 1; }
 
           # a binary path forces local for that tool
-          cfg=$(nextflow config . --crpath /programs/cellranger-9.0.1/cellranger)
+          printf "params.crpath = '/programs/cellranger-9.0.1/cellranger'\n" > test/local.config
+          cfg=$(nextflow config . -c test/local.config)
           echo "$cfg" | grep -q "crengine = 'local'" || { echo "crpath did not force local"; exit 1; }
           echo "sif resolution OK"
 

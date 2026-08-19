@@ -1,11 +1,9 @@
 # Nextflow Pipeline for 10x Genomics single cell runs
 
 [![ci](https://github.com/bixBeta/10x/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bixBeta/10x/actions/workflows/ci.yml)
-[![build-container](https://github.com/bixBeta/10x/actions/workflows/build-containers.yml/badge.svg)](https://github.com/bixBeta/10x/actions/workflows/build-containers.yml)
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-25.04.1-23aa62.svg)](https://www.nextflow.io/)
 [![Singularity](https://img.shields.io/badge/container-Singularity-1d355c.svg)](https://sylabs.io/singularity/)
 [![Cell Ranger](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
-[![GHCR](https://img.shields.io/badge/ghcr.io-private-lightgrey.svg)](https://github.com/bixBeta/10x/pkgs/container/cellranger)
 
 <hr>
 
@@ -217,59 +215,34 @@ The resolved binary is checked before any work starts, so an uninstalled version
 fails immediately and tells you what *is* installed, rather than dying inside the
 first task.
 
-### Containers (optional)
+### Containers
 
-Only if you want one — pass `--container` (or `--arccontainer` for multiome)
-with a `.sif` path or a `docker://` URI. Nothing is pulled otherwise. Cell Ranger
-is licensed software, so any image you build must not be shared publicly.
-
-## Cell Ranger version
-
-The container tag follows `--crversion`, so a run can be pinned to any built
-version without touching the code:
+Images are built **on the machine that runs them** and never pulled by the
+pipeline. `containers/build-sif.sh` makes a `.sif` either by converting an image
+you already have:
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --crversion 7.2.0 --sheet sample-sheet.csv --ref GRCh38
+bash containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/singularity
 ```
 
-## Containers
-
-Cell Ranger is licensed software and must not be redistributed, so the images
-are **private** on GHCR and this repo never holds the tarball.
-
-Built in two layers so the Cell Ranger install is isolated:
-
-| image | holds | rebuilt |
-|---|---|---|
-| `cellranger-base:<version>` | the Cell Ranger install, nothing else | only when missing |
-| `cellranger:<version>` | anything on top, built `FROM` the base | every run, in seconds |
-
-To build a version:
-
-1. Accept the EULA on the [10x downloads page](https://www.10xgenomics.com/support/software/cell-ranger/downloads)
-   to reveal the signed link. It expires, so use it promptly.
-2. Store it as the repo secret `TENX_DOWNLOAD_URL` — only the URL, not the whole
-   `curl` command.
-3. Run the **build-container** workflow from the Actions tab.
-
-Additions go in the marked extension block of
-`containers/cellranger/Dockerfile`; leave `Dockerfile.base` alone.
-
-### Pulling on the server
-
-The packages are private, so either export credentials:
+or by building from a 10x tarball, which needs no registry at all:
 
 ```bash
-export SINGULARITY_DOCKER_USERNAME=bixBeta
-export SINGULARITY_DOCKER_PASSWORD=<ghcr-pat-with-read:packages>
+bash containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/singularity
 ```
 
-or, better for a shared server, pull the SIF once into a shared cache so nobody
-else needs credentials:
+Either way it writes `<sifdir>/<tool>-<version>.sif`, which is exactly the name
+the pipeline looks for. Building usually needs root or `--fakeroot`; set
+`SIF_FAKEROOT=1` to add the flag.
 
-```bash
-export NXF_SINGULARITY_CACHEDIR=/shared/singularity_cache
-singularity pull docker://ghcr.io/bixbeta/cellranger:9.0.1
+The script knows the two install layouts — `cellranger` keeps its executable at
+the top of the install dir, `cellranger-arc` in `bin/` — and puts both on `PATH`.
+
+Set the SIF location once for everyone by adding it to a site config rather than
+asking users to pass `--sifdir`:
+
+```groovy
+params.sifdir = '/local/workdir/singularity'
 ```
 
 ## Development

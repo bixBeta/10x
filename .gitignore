@@ -21,6 +21,8 @@ test/fastq/
 test/ref/
 test/sample-sheet*.csv
 test/sheet-*.csv
+test/sif.config
+test/local.config
 
 # Vendor tarballs - 10x binaries must never be committed (EULA).
 # Match tarballs only: a rule like `containers/**/cellranger*` would exclude the
