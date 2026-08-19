@@ -56,6 +56,45 @@ jobs:
       - name: List references
         run: nextflow run . --listRefs
 
+      - name: Singularity engine resolves the sif path
+        run: |
+          set -euo pipefail
+          # default engine is singularity: the container directive must point at
+          # <sifdir>/<tool>-<version>.sif, and nothing may reference ghcr.io
+          cfg=$(nextflow config . --sifdir /shared/sif --crversion 9.0.1)
+          echo "$cfg" | grep -q "/shared/sif/cellranger-9.0.1.sif" || {
+            echo "$cfg" | grep -i container; echo "sif path not resolved"; exit 1; }
+          if echo "$cfg" | grep -q 'ghcr.io' ; then
+            echo "config still references ghcr.io"; exit 1
+          fi
+
+          # arc gets its own image
+          cfg=$(nextflow config . --sifdir /shared/sif --arcversion 2.2.0)
+          echo "$cfg" | grep -q "/shared/sif/cellranger-arc-2.2.0.sif" || { echo "arc sif not resolved"; exit 1; }
+
+          # a binary path forces local for that tool
+          cfg=$(nextflow config . --crpath /programs/cellranger-9.0.1/cellranger)
+          echo "$cfg" | grep -q "crengine = 'local'" || { echo "crpath did not force local"; exit 1; }
+          echo "sif resolution OK"
+
+      - name: Missing sif fails with a clear message
+        run: |
+          set -euo pipefail
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+                  --sifdir "$PWD/nosuchdir" 2>&1) && { echo "expected failure"; exit 1; }
+          echo "$out" | grep -q 'No cellranger image at' || { echo "$out" | tail -20; echo "wrong error"; exit 1; }
+          echo "missing sif rejected"
+
+      - name: build-sif.sh argument handling
+        run: |
+          set -euo pipefail
+          bash -n containers/build-sif.sh
+          # unknown tool is rejected before anything else happens
+          if bash containers/build-sif.sh nonsense 1.0 /tmp/x.tar.gz 2>/dev/null ; then
+            echo "expected rejection of an unknown tool"; exit 1
+          fi
+          echo "build-sif.sh OK"
+
       - name: List programs
         run: nextflow run . --listPrograms
 
@@ -63,7 +102,7 @@ jobs:
         run: |
           set -euo pipefail
           # no --crpath, and /programs/cellranger-9.0.1 does not exist here
-          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref 2>&1) && {
+          out=$(nextflow run . -c test/ci.config --engine local --sheet test/sample-sheet.csv --ref test/ref 2>&1) && {
             echo "expected failure for a missing cellranger install"; exit 1; }
           echo "$out" | grep -q 'No cellranger found at' || { echo "$out" | tail -20; echo "wrong error"; exit 1; }
           echo "missing install rejected"
@@ -77,7 +116,7 @@ jobs:
           # --programs + --crversion build the path, no --crpath needed
           mkdir -p fakeprograms/cellranger-8.0.1
           cp test/fake-cellranger fakeprograms/cellranger-8.0.1/cellranger
-          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+          nextflow run . -c test/ci.config --engine local --sheet test/sample-sheet.csv --ref test/ref \
             --programs "$PWD/fakeprograms" --crversion 8.0.1 \
             --localcores 2 --localmem 4
           grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"

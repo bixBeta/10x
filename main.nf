@@ -144,22 +144,33 @@ Args:
     * --r1length       : Trim R1 to this length; default <28>. Pass 0 to omit the flag.
     * --r2length       : Trim R2 to this length; default <null>
 
-  10x software ( local install, see --listPrograms ):
+  10x software:
     * --crversion      : Cell Ranger version; default <9.0.1>
-                         -> /programs/cellranger-<crversion>/cellranger
     * --arcversion     : cellranger-arc version; default <2.2.0>
+    * --engine         : 'singularity' runs a locally built .sif; default <singularity>
+                       : 'local'       runs an install under --programs
+
+      singularity ( default ):
+        * --sifdir     : Where the images live; default </local/workdir/singularity>
+                         -> <sifdir>/cellranger-<crversion>.sif
+                         -> <sifdir>/cellranger-arc-<arcversion>.sif
+        * --crsif      : Full path to the gex image. Overrides sifdir + crversion.
+        * --arcsif     : Full path to the arc image.
+
+                         Build one with:
+                         containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 <sifdir>
+                         containers/build-sif.sh cellranger-arc 2.2.0 <tarball> <sifdir>
+
+      local:
+        * --programs   : Where the installs live; default </programs>
+                         -> /programs/cellranger-<crversion>/cellranger
                          -> /programs/cellranger-arc-<arcversion>/bin/cellranger-arc
-    * --programs       : Where the installs live; default </programs>
-    * --crpath         : Full path to the cellranger binary. Overrides crversion.
-    * --arcpath        : Full path to the cellranger-arc binary. Overrides arcversion.
+        * --crpath     : Full path to the cellranger binary. Implies --engine local.
+        * --arcpath    : Full path to the cellranger-arc binary. Implies --engine local.
+        * --listPrograms : List what is installed under --programs
 
-                         The resolved binary is checked before anything runs, so a
-                         version that is not installed fails immediately and lists
-                         what is.
-
-  Containers ( optional, off by default ):
-    * --container      : Run gex inside this image e.g. a .sif path or docker:// uri
-    * --arccontainer   : Same for arc mode
+      Either way the resolved image or binary is checked before anything runs, so
+      a version that is not there fails immediately and lists what is.
 
   Runtime / resources:
     * --localcores     : cellranger --localcores, also the cpus reserved; default <32>
@@ -201,20 +212,34 @@ localcores   : ${params.localcores}
 localmem     : ${params.localmem}
 maxforks     : ${params.maxforks}
 crversion    : ${params.crversion}
-cellranger   : ${params.mode == "arc" ? params.arcbin : params.crbin}
-container    : ${params.mode == "arc" ? (params.arccontainer ?: "none, local install") : (params.container ?: "none, local install")}
+engine       : ${params.mode == "arc" ? params.arcengine : params.crengine}
+cellranger   : ${params.mode == "arc" ? (params.arcimage ?: params.arcbin) : (params.crimage ?: params.crbin)}
 """
 
-// The 10x binary is a local install. Fail here, with the resolved path and what
-// is actually installed, rather than a task dying much later. Skipped for a
-// container run ( the binary lives in the image ) and for -stub-run.
-def checkProgram(bin, containerParam, what) {
+// Fail here, with the resolved path, rather than a task dying much later.
+// singularity: the .sif must exist. local: the binary must exist.
+// Skipped for -stub-run, and for a remote image uri that is not a local file.
+def checkEngine(engine, bin, image, what) {
 
-    if( containerParam )       return
-    if( workflow.stubRun )     return
+    if( workflow.stubRun ) return
 
-    def f = file(bin)
-    if( f.exists() ) return
+    if( engine == "singularity" ) {
+
+        if( image ==~ /^[a-z]+:\/\/.*/ ) return      // docker:// etc, resolved by singularity
+
+        if( file(image).exists() ) return
+
+        def built = file("${params.sifdir}/*.sif")
+        def avail = ( built instanceof List ? built : ( built ? [built] : [] ) )
+                        .collect { it.name }.sort()
+
+        error """No ${what} image at: ${image}
+    Present in ${params.sifdir}: ${ avail ? avail.join(', ') : 'no .sif files' }
+    Build one with containers/build-sif.sh, point at another dir with --sifdir,
+    or run the local install instead with --engine local."""
+    }
+
+    if( file(bin).exists() ) return
 
     def installed = file("${params.programs}/cellranger*")
     def avail = ( installed instanceof List ? installed : ( installed ? [installed] : [] ) )
@@ -222,7 +247,7 @@ def checkProgram(bin, containerParam, what) {
 
     error """No ${what} found at: ${bin}
     Installed under ${params.programs}: ${ avail ? avail.join(', ') : 'nothing matching cellranger*' }
-    Set --${what == 'cellranger-arc' ? 'arcversion' : 'crversion'} to an installed version, or give the full path with --${what == 'cellranger-arc' ? 'arcpath' : 'crpath'}."""
+    Set a version that is installed, or give the full path."""
 }
 
 
@@ -481,7 +506,7 @@ GENE EXPRESSION Workflow
 
 workflow GEX {
 
-    checkProgram(params.crbin, params.container, "cellranger")
+    checkEngine(params.crengine, params.crbin, params.crimage, "cellranger")
 
     if( ref == null ){
         error "No reference provided. Use --ref < key or path >, see --listRefs"
@@ -525,7 +550,7 @@ listing both, which is generated per label from the sheet.
 
 workflow ARC {
 
-    checkProgram(params.arcbin, params.arccontainer, "cellranger-arc")
+    checkEngine(params.arcengine, params.arcbin, params.arcimage, "cellranger-arc")
 
     if( ref == null ){
         error "No reference provided. Use --ref < key or path >, see --listRefs"

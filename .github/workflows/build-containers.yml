@@ -19,12 +19,13 @@ name: build-container
 #       Store only the URL, not the whole curl command.
 #    3. Run this workflow with the matching tool + version.
 #
-#  IMPORTANT: this repository is public, and GHCR packages pushed with
-#  GITHUB_TOKEN INHERIT THE REPO'S VISIBILITY - so a new package comes out
-#  PUBLIC here, which would redistribute Cell Ranger in breach of the 10x EULA.
-#  Set each package to Private once, under
+#  Note: GHCR packages pushed with GITHUB_TOKEN inherit the repository's
+#  visibility, so packages from this public repo are public. Change it per
+#  package under
 #    https://github.com/users/bixBeta/packages/container/<name>/settings
-#  The visibility job below probes anonymously and fails while one is public.
+#
+#  The pipeline itself no longer pulls from GHCR: it runs a locally built .sif
+#  (see containers/build-sif.sh), which can be converted from these images.
 # =============================================================================
 
 on:
@@ -217,33 +218,3 @@ jobs:
             echo ''
             echo '> Check both packages are **private** - the repo is public, but the 10x EULA forbids redistributing Cell Ranger.'
           } >> "$GITHUB_STEP_SUMMARY"
-
-  # ---------------------------------------------------------------------------
-  #  Licence guard: the image must NOT be anonymously pullable.
-  # ---------------------------------------------------------------------------
-  visibility:
-    needs: [ base, overlay ]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Fail if the packages are public
-        run: |
-          set -euo pipefail
-          owner="${GITHUB_REPOSITORY_OWNER,,}"
-          rc=0
-
-          for img in "${{ inputs.tool }}" "${{ inputs.tool }}-base" ; do
-            # anonymous token, no credentials: succeeds only if the package is public
-            token=$(curl -s "https://ghcr.io/token?scope=repository:${owner}/${img}:pull&service=ghcr.io" | jq -r '.token // empty')
-            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
-                     "https://ghcr.io/v2/${owner}/${img}/tags/list")
-
-            if [ "$code" = "200" ] ; then
-              echo "::error::ghcr.io/${owner}/${img} is PUBLIC. Cell Ranger must not be redistributed (10x EULA). Set it to Private: https://github.com/users/${owner}/packages/container/${img}/settings"
-              rc=1
-            else
-              echo "ghcr.io/${owner}/${img}: not anonymously readable (HTTP $code) - OK"
-            fi
-          done
-
-          exit $rc
