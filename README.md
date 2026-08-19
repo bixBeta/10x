@@ -18,7 +18,7 @@ Requires Nextflow >= 24.04, tested against 25.04.1.
 ## Usage
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --id TREx_1234 --sheet sample-sheet.csv --ref Human
+nextflow run https://github.com/bixBeta/10x -r main --id BRC_1234 --sheet sample-sheet.csv --ref Human
 ```
 
 ```bash
@@ -245,7 +245,7 @@ Notes for the build host:
 
 | param | default | notes |
 |---|---|---|
-| `--id` | `TREx_ID` | TREx Project ID |
+| `--id` | `BRC_ID` | BRC Project ID |
 | `--sheet` | `sample-sheet.csv` | |
 | `--mode` | `gex` | `gex`, `arc` |
 | `--ref` | — | key from `--listRefs`, or a full path |

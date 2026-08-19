@@ -10,7 +10,7 @@ params.listPrograms     = false
 
 // Default Params:
 params.mode             = "gex"
-params.id               = "TREx_ID"
+params.id               = "BRC_ID"
 params.ref              = null
 params.chemistry        = "auto"
 params.expectCells      = null
@@ -44,7 +44,7 @@ Args:
     * --help           : Prints this help documentation
     * --listRefs       : Get extended list of 10x references available for this pipeline
     * --listPrograms   : List the 10x software installed under --programs
-    * --id             : TREx Project ID
+    * --id             : BRC Project ID
     * --sheet          : sample-sheet.csv < default: looks for a file named sample-sheet.csv in the project dir >
 
         -----------------------------------------------------------
@@ -200,7 +200,7 @@ Args:
 log.info """
 1  0  x      W  O  R  K  F  L  O  W  -  @bixBeta
 =========================================================================================================================
-trexID       : ${params.id}
+brcID        : ${params.id}
 sheet        : ${params.sheet}
 mode         : ${params.mode}
 ref          : ${params.ref}
