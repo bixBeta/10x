@@ -594,8 +594,10 @@ workflow GEX {
             | groupTuple
             | filter { label, libraries, h5s -> libraries.size() > 1 }
             | map { label, libraries, h5s ->
-                  def order = (0..<libraries.size()).sort { libraries[it] }
-                  [ label, order.collect { libraries[it] }, order.collect { h5s[it] } ]
+                  // pair them up and sort by library, so the csv rows and the
+                  // staged files stay in step and the order is deterministic
+                  def pairs = [ libraries, h5s ].transpose().sort { it[0] }
+                  [ label, pairs.collect { it[0] }, pairs.collect { it[1] } ]
               }
             | view { label, libraries, h5s ->
                   "AGGR >> ${label}  ( ${libraries.size()} libraries: ${libraries.join(', ')} )" }
