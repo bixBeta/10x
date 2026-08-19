@@ -75,14 +75,14 @@ process CELLRANGER_COUNT {
         fi
     fi
 
-    ${crBin} count \
-        --id=${library} \
-        --localcores=${task.cpus} \
-        --localmem=${task.memory.toGiga()} \
-        ${bamArg} ${r1Arg} ${r2Arg} \
-        --transcriptome=${ref} \
-        --fastqs=${fastqArg} \
-        --sample=${sampleArg} \
+    ${crBin} count \\
+        --id=${library} \\
+        --localcores=${task.cpus} \\
+        --localmem=${task.memory.toGiga()} \\
+        ${bamArg} ${r1Arg} ${r2Arg} \\
+        --transcriptome=${ref} \\
+        --fastqs=${fastqArg} \\
+        --sample=${sampleArg} \\
         ${chemArg} ${cellsArg} ${forceArg} ${intronArg}
 
     # lift outs/ up so publishDir and downstream modules see a stable path

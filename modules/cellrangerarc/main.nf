@@ -66,12 +66,12 @@ process CELLRANGER_ARC_COUNT {
     fi
 
 
-    ${arcBin} count \
-        --id=${label} \
-        --reference=${ref} \
-        --libraries=${label}_libraries.csv \
-        --localcores=${task.cpus} \
-        --localmem=${task.memory.toGiga()} \
+    ${arcBin} count \\
+        --id=${label} \\
+        --reference=${ref} \\
+        --libraries=${label}_libraries.csv \\
+        --localcores=${task.cpus} \\
+        --localmem=${task.memory.toGiga()} \\
         --create-bam=${createBam}
 
     # lift outs/ up so publishDir and downstream modules see a stable path

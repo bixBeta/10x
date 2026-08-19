@@ -242,6 +242,14 @@ jobs:
           grep -q 'cellranger' pipeline_info/software_versions.yml
           echo "versions OK"
 
+          # the generated .command.sh must keep its line breaks, so the command
+          # is legible in tower / seqera monitoring rather than one long line
+          sh=$(grep -rl -- '--id=JS4' work --include=.command.sh | head -1)
+          grep -q '\\$' "$sh" || { echo "no line continuations in $sh"; sed -n '1,40p' "$sh"; exit 1; }
+          lines=$(grep -c -- '--localcores=\|--transcriptome=\|--fastqs=' "$sh")
+          test "$lines" -ge 3 || { echo "cellranger call collapsed onto one line"; sed -n '1,40p' "$sh"; exit 1; }
+          echo "command formatting OK ($lines flags on their own lines)"
+
       - name: r1length 0 omits the flag
         env:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture2

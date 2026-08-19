@@ -48,11 +48,11 @@ process CELLRANGER_AGGR {
         fi
     fi
 
-    ${crBin} aggr \
-        --id=${label} \
-        --csv=${label}_aggr.csv \
-        --localcores=${task.cpus} \
-        --localmem=${task.memory.toGiga()} \
+    ${crBin} aggr \\
+        --id=${label} \\
+        --csv=${label}_aggr.csv \\
+        --localcores=${task.cpus} \\
+        --localmem=${task.memory.toGiga()} \\
         ${normArg}
 
     # lift outs/ up so publishDir and downstream modules see a stable path
