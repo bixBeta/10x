@@ -30,7 +30,19 @@ nextflow run https://github.com/bixBeta/10x -r main --listRefs
 ```
 
 Results land in `CELLRANGER/<label>/outs`, or `CELLRANGER_ARC/<label>/` for
-multiome, plus `pipeline_info/`.
+multiome, plus `pipeline_info/`. Everything is published as symlinks into the
+work directory, so nothing is duplicated — keep `work/` until you are done.
+
+Two flat collections gather the per library summaries so a whole run can be
+skimmed without walking each folder:
+
+```
+web_summary_htmls/    JS4_web_summary.html  JS5_web_summary.html  ...
+summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv  ...
+```
+
+Multiome joins the same directories; its metrics file is `summary.csv`, so it
+lands as `<label>_summary.csv`.
 
 ## Sample sheet
 
