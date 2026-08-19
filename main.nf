@@ -132,7 +132,7 @@ Args:
 
     * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
                        : use 'arc'  for multiome GEX + ATAC
-                       : use 'atac' for scATAC                 ( v0.2, not yet implemented )
+                       : use 'atac' for scATAC                 ( not yet implemented )
 
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
@@ -645,7 +645,7 @@ workflow {
 
     else if( params.mode == "atac" ){
 
-        error "atac mode is not implemented yet ( v0.2 )"
+        error "atac mode is not implemented yet"
     }
 
     else if( params.mode == "arc" ){

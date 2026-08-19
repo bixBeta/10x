@@ -11,12 +11,14 @@
 |---|---|---|
 | `gex` | `cellranger count` | working |
 | `arc` | `cellranger-arc count` | working |
-| `atac` | `cellranger-atac count` | v0.2 |
+| `atac` | `cellranger-atac count` | planned |
+
+Requires Nextflow >= 24.04, tested against 25.04.1.
 
 ## Usage
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --id TREx_1234 --sheet sample-sheet.csv --ref GRCh38
+nextflow run https://github.com/bixBeta/10x -r main --id TREx_1234 --sheet sample-sheet.csv --ref Human
 ```
 
 ```bash
@@ -27,6 +29,9 @@ nextflow run https://github.com/bixBeta/10x -r main --help
 nextflow run https://github.com/bixBeta/10x -r main --listRefs
 ```
 
+Results land in `CELLRANGER/<label>/outs`, or `CELLRANGER_ARC/<label>/` for
+multiome, plus `pipeline_info/`.
+
 ## Sample sheet
 
 ```csv
@@ -35,16 +40,23 @@ JS4,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Samp
 JS5,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2
 ```
 
-`fastqs` is the 10x delivery directory — or any fastq inside it, whichever is
-easier to paste. A file resolves to its parent, since `--fastqs` takes a
-directory. **Nothing is copied, staged or renamed**; the path goes to Cell
-Ranger exactly as given.
+| column | required | notes |
+|---|---|---|
+| `label` | yes | your short name; becomes `--id` and the output folder |
+| `fastqs` | yes | the 10x delivery dir, or any fastq inside it |
+| `library` | no | one GEM well; defaults to `label` |
+| `sample` | only if ambiguous | the fastq prefix, when the path holds more than one |
+| `library_type` | no | defaults to `Gene Expression` |
 
-`label` is yours: short, user defined, used for `--id` and the output folder.
-It is never derived from the path.
+`fastqs` reaches Cell Ranger untouched — **nothing is copied, staged or
+renamed**. Point it at the `Sample_*` delivery directory, the `Project_*`
+directory above it, or any fastq inside; a file resolves to its parent, since
+`--fastqs` takes a directory.
 
-`--sample` is read off the files in the directory, because Cell Ranger needs
-the fastq prefix rather than the directory name:
+`label` is yours: short, user defined, never derived from the path.
+
+`--sample` is read off the filenames, because Cell Ranger needs the fastq
+prefix and not the directory name:
 
 ```
 Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
@@ -52,9 +64,8 @@ Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
   -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
 ```
 
-It is read from the actual filenames rather than parsed out of the directory
-name, so an unexpected naming variant fails in the sheet check with a clear
-message instead of inside Cell Ranger.
+It comes from the actual files rather than being parsed out of the directory
+name, so an unexpected naming variant is caught while reading the sheet.
 
 ### Same library sequenced more than once
 
@@ -67,15 +78,15 @@ JS5,/local/Illumina/DRV/run1/.../Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L
 JS5,/local/Illumina/DRV/run2/.../Sample_SC2620_JS5_G3_Sofia_10488923_999XYZAB2_L3
 ```
 
-Note the flow cell is part of the fastq prefix, so a top-up on a different flow
-cell has a *different* `--sample` value. Both are collected and passed as
-`--sample=prefix1,prefix2`; missing that would silently drop the second run.
+The flow cell is part of the fastq prefix, so a top-up on a different flow cell
+has a *different* `--sample`. Both are collected and passed as
+`--sample=prefix1,prefix2` — passing only one would silently drop a run.
 
 ### Several libraries from one sample
 
-Separate GEM wells: add the optional `library` column. Barcodes are not
-comparable across GEM wells, so each library is counted separately while
-staying tied to its `label`.
+Separate GEM wells: add the `library` column. Barcodes are not comparable
+across GEM wells, so each library is counted separately while staying tied to
+its `label`.
 
 ```csv
 label,library,fastqs
@@ -83,30 +94,22 @@ JS6,JS6_wellA,/local/.../Sample_SC2620_JS6A_G3_Scooter_10488923_253GGLLT4_L2
 JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_Scooter_10488923_253GGLLT4_L2
 ```
 
-### Columns per mode
+### When `sample` is required
 
-| column | required | notes |
-|---|---|---|
-| `label` | yes | your short name; becomes `--id` and the output folder |
-| `fastqs` | yes | delivery dir, or any fastq in it |
-| `library` | no | one GEM well; defaults to `label` |
-| `sample` | only if ambiguous | the fastq prefix; required when the path holds more than one |
-| `library_type` | no | defaults to `Gene Expression` |
+One row is one library. If a path holds more than one fastq prefix — a
+`Project_*` directory carrying several samples — the row is ambiguous and is
+rejected rather than guessed at. Name the prefix explicitly:
 
-`library_type` uses 10x's own vocabulary, so it lands in `libraries.csv`
-verbatim: `Gene Expression`, `Chromatin Accessibility`, `Antibody Capture`,
-`CRISPR Guide Capture`, `Multiplexing Capture`, `VDJ-T`, `VDJ-B`. Shorthands
-are accepted (`gex`, `rna`, `atac`, `adt`, `citeseq`, `hto`, `crispr`, `cmo`,
-`cellplex`).
-
-R1/R2/R3 all live inside the delivery directory, so there is no `fastq3`
-column — that existed only back when the sheet listed individual files.
+```csv
+label,fastqs,sample
+JS4,/local/.../Project_10488923,SC2620_JS4_G3_Reign_10488923_253GGLLT4
+```
 
 ### Multiome (`--mode arc`)
 
 One label carries a Gene Expression library and a Chromatin Accessibility
-library. They are not counted separately: `cellranger-arc` takes a
-`libraries.csv` naming both, which the pipeline writes for you.
+library, told apart by `library_type`. They are not counted separately:
+`cellranger-arc` takes a `libraries.csv` naming both, which the pipeline writes.
 
 ```csv
 label,fastqs,sample,library_type
@@ -129,10 +132,102 @@ cellranger-arc count --id=JS4 --reference=<ref> --libraries=JS4_libraries.csv \
   --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam>
 ```
 
-Note both rows point at the same Project directory, which holds *both*
-libraries — so the `sample` column is required here. One row is one library, and
-a path yielding several prefixes is rejected rather than guessed at. Outputs
-land in `CELLRANGER_ARC/<label>/`.
+`library_type` uses 10x's own vocabulary so the value lands in `libraries.csv`
+verbatim: `Gene Expression`, `Chromatin Accessibility`, `Antibody Capture`,
+`CRISPR Guide Capture`, `Multiplexing Capture`, `VDJ-T`, `VDJ-B`. Shorthands are
+accepted (`gex`, `rna`, `atac`, `adt`, `citeseq`, `hto`, `crispr`, `cmo`,
+`cellplex`).
+
+It is stated rather than inferred because a standalone scRNA library and a
+standalone scATAC library from the same tissue are *not* multiome — different
+kit, different chemistry — and cannot go through `cellranger-arc`.
+
+## References
+
+`--listRefs` prints the full map. Keys point at the build rather than the
+species directory, and the same key picks the right build for the mode.
+
+| key | gex | arc |
+|---|---|---|
+| `Apoculata_stonyCoral` | `240514_fromSarahArnold/apoculata` | — |
+| `Canine` | `CanFam3_1` | `arc/CanFam3_Ensembl101annot` |
+| `Combo_Human_Mouse` | `refdata-gex-GRCh38_and_GRCm39-2024-A` | — |
+| `Combo_Human_Mouse_2020` | `refdata-gex-GRCh38-and-mm10-2020-A` | — |
+| `Feline` | `Fca126` | — |
+| `Horse` | `EquCab3/ENSEMBL_annot116/spaceranger/EquCab3_ENS116` | — |
+| `Horse_ENS112` | `EquCab3/ENSEMBL_annot112/spaceranger/EquCab3_ENS112` | — |
+| `Human` | `refdata-gex-GRCh38-2024-A` | `refdata-cellranger-arc-GRCh38-2024-A` |
+| `MAIZE` | `MAIZE_CellRanger` | — |
+| `Mouse` | `refdata-gex-GRCm39-2024-A` | `refdata-cellranger-arc-GRCm39-2024-A` |
+| `Nematostella` | `Nematostella2_2/Nematostella2_2_standard` | `Nematostella2_2/Nematostella2_2` |
+| `Nematostella_jaNemVect1` | — | `jaNemVect1.1/NCBI/jaNemVect1_1` |
+
+Rooted at `/local/workdir/10x_analysis/REFS`. `--ref` also takes a full path.
+
+A reference is a directory holding `reference.json`. If `--ref` points at a
+parent, the run stops and names the builds it found so you can pick one.
+
+## 10x software
+
+Two engines, `singularity` by default:
+
+| engine | source | resolves to |
+|---|---|---|
+| `singularity` | a locally built image | `<sifdir>/cellranger-<crversion>.sif` |
+| `local` | a native install | `/programs/cellranger-<crversion>/cellranger` |
+
+`--sifdir` defaults to `/local/workdir/10x_analysis/singularity-sifs`.
+`--crsif` / `--arcsif` name an image directly. `--crpath` / `--arcpath` name a
+binary and force `local` for that tool. `--listPrograms` shows what is installed
+under `--programs`.
+
+The image or binary is checked before any work starts, and the error lists what
+is actually present.
+
+### Which version am I really running?
+
+A filename is only a claim. Before counting anything the tool is asked its own
+version inside the image, and the run stops if it disagrees:
+
+```
+ERROR: asked for cellranger 9.0.1 but cellranger reports 7.0.0
+       Set --crversion to match, point at another image with --crsif, or pass --checkversion false.
+```
+
+This applies to `--engine local` too. The version actually reported is recorded
+in `pipeline_info/software_versions.yml`.
+
+## Building an image
+
+`containers/build-sif.sh` builds on the machine that will run it. Nothing is
+pushed anywhere.
+
+From a 10x tarball:
+
+```bash
+bash containers/build-sif.sh cellranger 10.1.0 cellranger-10.1.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
+```
+
+or by converting an image you already have:
+
+```bash
+bash containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/10x_analysis/singularity-sifs
+```
+
+It writes `<tool>-<version>.sif`, exactly the name the pipeline looks for, then
+runs `--version` inside the image so you see what you got. Each version is its
+own image: the install is baked in and cannot be upgraded in place.
+
+Notes for the build host:
+
+- Needs root or `--fakeroot`; set `SIF_FAKEROOT=1`.
+- Needs outbound network to bootstrap `ubuntu:22.04`. The finished image does not.
+- Needs several GB of scratch. Set `APPTAINER_TMPDIR` if `/tmp` is small.
+- Sites that auto-bind paths need those mount points inside the image. The
+  default `/workdir /local /programs` is created during the build; adjust with
+  `SIF_BINDS="/workdir /local /fs"`.
+- `cellranger` keeps its executable at the top of the install dir,
+  `cellranger-arc` in `bin/`. Both are put on `PATH`.
 
 ## Params
 
@@ -140,136 +235,66 @@ land in `CELLRANGER_ARC/<label>/`.
 |---|---|---|
 | `--id` | `TREx_ID` | TREx Project ID |
 | `--sheet` | `sample-sheet.csv` | |
-| `--mode` | `gex` | `gex`, `atac`, `arc` |
-| `--ref` | — | key from `--listRefs`, or a full path to a reference dir |
+| `--mode` | `gex` | `gex`, `arc` |
+| `--ref` | — | key from `--listRefs`, or a full path |
 | `--chemistry` | `auto` | |
 | `--expectCells` / `--forceCells` | — | |
 | `--createBam` | `false` | |
-| `--introns` | tool default | |
+| `--introns` | tool default | `--include-introns` |
 | `--r1length` | `28` | `--r1-length`; pass `0` to omit |
 | `--r2length` | — | `--r2-length` |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `180` | `--localmem` in GB **and** the memory reserved |
-| `--maxforks` | `2` | concurrent tasks **per process** — 2 means 2 Cell Ranger runs at once |
-| `--crversion` | `9.0.1` | → `/programs/cellranger-<v>/cellranger` |
-| `--arcversion` | `2.2.0` | → `/programs/cellranger-arc-<v>/bin/cellranger-arc` |
-| `--programs` | `/programs` | where the installs live |
-| `--crpath` | — | full path to the binary; overrides `--crversion` |
-| `--arcpath` | — | full path to the arc binary; overrides `--arcversion` |
-| `--container` / `--arccontainer` | — | opt in to running inside an image |
+| `--maxforks` | `2` | concurrent tasks **per process** |
+| `--engine` | `singularity` | or `local` |
+| `--crversion` / `--arcversion` | `9.0.1` / `2.2.0` | selects the image or install |
+| `--sifdir` | see above | where the `.sif` files live |
+| `--crsif` / `--arcsif` | — | a specific image |
+| `--programs` | `/programs` | where native installs live |
+| `--crpath` / `--arcpath` | — | a specific binary; forces `--engine local` |
+| `--checkversion` | `true` | verify the tool's own version |
 
-Outputs land in `CELLRANGER/<label>/outs` and `pipeline_info/`.
-
-Every flag in the usual invocation is a param, and the command built per
-library is:
+The command built per library:
 
 ```bash
-<crpath|cellranger> count --id=<label> \
+cellranger count --id=<label> \
   --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam> --r1-length=<r1length> \
   --transcriptome=<ref> \
   --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]>
 ```
 
 `--localcores` and `--localmem` set the Nextflow reservation *and* the Cell
-Ranger flags from one value, so what the scheduler holds and what Cell Ranger
-believes it has cannot drift apart.
-
-Every process retries a failed task twice before the run stops
-(`errorStrategy { task.attempt <= 2 ? 'retry' : 'finish' }`, `maxRetries 2`).
-`finish` lets tasks already running complete rather than killing them, so a
-late failure does not throw away hours of work on the other libraries.
-
-## 10x software
-
-The pipeline runs **your local install** — nothing is pulled and no container is
-involved unless you ask for one. Give it a version and the path is built by
-convention:
-
-| param | default | resolves to |
-|---|---|---|
-| `--crversion` | `9.0.1` | `/programs/cellranger-9.0.1/cellranger` |
-| `--arcversion` | `2.2.0` | `/programs/cellranger-arc-2.2.0/bin/cellranger-arc` |
-
-Note the two layouts differ: `cellranger` keeps its executable at the top of the
-install directory, `cellranger-arc` keeps it in `bin/`. The pipeline knows this.
-
-See what is installed:
-
-```bash
-nextflow run https://github.com/bixBeta/10x -r main --listPrograms
-```
-
-Pick a version, or point at a binary directly:
-
-```bash
-nextflow run https://github.com/bixBeta/10x -r main --crversion 8.0.1 --sheet sample-sheet.csv --ref CanFam3_1
-```
-
-```bash
-nextflow run https://github.com/bixBeta/10x -r main --crpath /home/me/builds/cellranger --sheet sample-sheet.csv --ref CanFam3_1
-```
-
-A different site layout is `--programs /opt/apps`.
-
-The resolved binary is checked before any work starts, so an uninstalled version
-fails immediately and tells you what *is* installed, rather than dying inside the
-first task.
-
-### Containers
-
-Images are built **on the machine that runs them** and never pulled by the
-pipeline. `containers/build-sif.sh` makes a `.sif` either by converting an image
-you already have:
-
-```bash
-bash containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/10x_analysis/singularity-sifs
-```
-
-or by building from a 10x tarball, which needs no registry at all:
-
-```bash
-bash containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
-```
-
-Either way it writes `<sifdir>/<tool>-<version>.sif`, which is exactly the name
-the pipeline looks for. Building usually needs root or `--fakeroot`; set
-`SIF_FAKEROOT=1` to add the flag.
-
-The script knows the two install layouts — `cellranger` keeps its executable at
-the top of the install dir, `cellranger-arc` in `bin/` — and puts both on `PATH`.
-
-Set the SIF location once for everyone in a site config rather than asking
-users to pass `--sifdir`, or pin an image outright:
-
-```groovy
-params.sifdir = '/local/workdir/10x_analysis/singularity-sifs'
-// or, for one specific image
-params.crsif  = 'file:///workdir/TREx_shared/projects/CELLRANGER_9.0.1.sif'
-```
-
-### Which version am I actually running?
-
-The filename is only a claim — `cellranger-9.0.1.sif` can contain anything. So
-before counting anything, the pipeline asks the tool its own version inside the
-image and fails if it disagrees with what you asked for:
-
-```
-ERROR: asked for cellranger 9.0.1 but cellranger reports 7.0.0
-       Set --crversion to match, point at another image with --crsif, or pass --checkversion false.
-```
-
-This applies to `--engine local` too, where `--crpath` can point at any binary.
-It costs milliseconds and turns a silent wrong-version result into an immediate
-stop. `--checkversion false` disables it. The version Cell Ranger reported is
-also recorded in `pipeline_info/software_versions.yml` for every run.
+Ranger flags from one value, so the allocation and what Cell Ranger believes it
+has cannot drift apart. Every process retries a failed task twice before the run
+stops, and no wall time is imposed.
 
 ## Development
 
-No Cell Ranger or real data needed:
+No Cell Ranger, no containers and no real data needed:
 
 ```bash
 bash test/make_test_data.sh
 nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref
 ```
 
-CI runs the same thing on every push, against Nextflow 25.04.1 and latest.
+CI runs the same on every push, and additionally drives the real command
+against a stand-in binary to check the flags, the pooling of re-sequenced
+libraries, the generated `libraries.csv`, engine selection, and every rejection
+case.
+
+## Layout
+
+```
+main.nf                            params, help, reference maps, workflows
+modules/cellranger/main.nf         cellranger count
+modules/cellrangerarc/main.nf      cellranger-arc count
+modules/versions/main.nf           software_versions.yml
+nextflow.config                    engines, resources, retries
+containers/build-sif.sh            build a .sif locally
+test/                              stub inputs and a stand-in binary
+```
+
+## Licence
+
+Pipeline code: MIT. Cell Ranger and the 10x reference packages are covered by
+the 10x Genomics End User Licence Agreement and are not distributed here.
