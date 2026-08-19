@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  Build a Singularity image for a 10x tool from a locally downloaded tarball.
+#  Build a Singularity image for a 10x tool.
+#
+#  Each Cell Ranger version needs its own image: the install is baked in, so an
+#  existing <tool>-<version>.sif cannot be upgraded in place.
 #
 #    ./containers/build-sif.sh <tool> <version> <source> [outdir]
 #
@@ -126,5 +129,10 @@ echo
 echo "built: ${SIF}"
 "$RUNNER" exec "$SIF" "$TOOL" --version || true
 echo
+case "$TOOL" in
+    cellranger)      VERFLAG="--crversion"   ;;
+    cellranger-arc)  VERFLAG="--arcversion"  ;;
+    *)               VERFLAG="--crversion"   ;;
+esac
 echo "use it with:"
-echo "  nextflow run bixBeta/10x -r main --sifdir ${OUTDIR} --${TOOL/cellranger-arc/arc}version ${VERSION}"
+echo "  nextflow run bixBeta/10x -r main --sifdir ${OUTDIR} ${VERFLAG} ${VERSION}"
