@@ -1,0 +1,65 @@
+# =============================================================================
+#  Copy this next to your sample sheet, edit, and run:
+#
+#      nextflow run bixBeta/10x -r main -params-file params.yaml
+#
+#  Every value below is the pipeline default, so a line only needs changing if
+#  you want something else. Anything on the command line still wins over this
+#  file, which is handy for one-off tweaks:
+#
+#      nextflow run bixBeta/10x -r main -params-file params.yaml --crversion 10.1.0
+# =============================================================================
+
+# ---- project ----------------------------------------------------------------
+id:            BRC_ID                 # project id, appears in the banner
+sheet:         sample-sheet.csv       # see --help for the columns
+mode:          gex                    # gex | arc
+
+# ---- reference --------------------------------------------------------------
+# A key from --listRefs, or a full path to a directory holding reference.json.
+# There is no default: this one has to be set.
+ref:           Canine
+
+# ---- 10x software -----------------------------------------------------------
+# Images are built locally with containers/build-sif.sh and picked up as
+# <sifdir>/cellranger-<crversion>.sif  /  cellranger-arc-<arcversion>.sif
+engine:        singularity
+sifdir:        /local/workdir/10x_analysis/singularity-sifs
+crversion:     9.0.1                  # gex
+arcversion:    2.2.0                  # arc
+
+# The tool is asked its own version inside the image and the run stops if it
+# disagrees with the above. Only turn this off for an unlabelled image.
+checkversion:  true
+
+# ---- resources --------------------------------------------------------------
+# localcores / localmem are passed to cellranger AND reserved by nextflow, so
+# the allocation and what cellranger believes it has cannot drift apart.
+# maxforks is per process: 2 means two libraries at once, so twice the above.
+localcores:    32
+localmem:      128                    # GB
+maxforks:      2
+
+# ---- cellranger count -------------------------------------------------------
+chemistry:     auto
+createBam:     false
+r1length:      28                     # set to 0 to omit --r1-length
+
+# ---- aggregation ------------------------------------------------------------
+# Runs for labels carrying several libraries, i.e. separate GEM wells. A label
+# with one library is left alone; its re-sequencing runs were already pooled.
+aggr:          true
+normalize:     mapped                 # mapped subsamples to the shallowest, or none
+
+# ---- occasionally useful, uncomment to use ----------------------------------
+# expectCells: 8000                   # cellranger estimates by default
+# forceCells:  5000
+# introns:     false                  # override --include-introns
+# r2length:    90
+# crsif:       /path/to/a/specific/cellranger.sif
+# arcsif:      /path/to/a/specific/cellranger-arc.sif
+#
+# To run a native install instead of an image:
+# engine:      local
+# programs:    /programs               # -> /programs/cellranger-<crversion>/cellranger
+# crpath:      /programs/cellranger-9.0.1/cellranger

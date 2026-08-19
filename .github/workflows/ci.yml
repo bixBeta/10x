@@ -426,6 +426,15 @@ jobs:
           test ! -d CELLRANGER_AGGR || { echo "--aggr false still ran aggr"; exit 1; }
           echo "aggr false honoured"
 
+      - name: params.yaml matches the defaults
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 test/check_params_yaml.py
+          # and it is actually usable, with the run specific bits overridden
+          nextflow run . -stub-run -c test/ci.config -params-file params.yaml \
+            --sheet test/sample-sheet.csv --ref test/ref
+          echo "params.yaml OK"
+
       - name: params from a yaml file
         env:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture-yaml
