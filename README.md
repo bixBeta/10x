@@ -222,13 +222,13 @@ pipeline. `containers/build-sif.sh` makes a `.sif` either by converting an image
 you already have:
 
 ```bash
-bash containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/singularity
+bash containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/10x_analysis/singularity-sifs
 ```
 
 or by building from a 10x tarball, which needs no registry at all:
 
 ```bash
-bash containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/singularity
+bash containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
 ```
 
 Either way it writes `<sifdir>/<tool>-<version>.sif`, which is exactly the name
@@ -242,7 +242,7 @@ Set the SIF location once for everyone in a site config rather than asking
 users to pass `--sifdir`, or pin an image outright:
 
 ```groovy
-params.sifdir = '/local/workdir/singularity'
+params.sifdir = '/local/workdir/10x_analysis/singularity-sifs'
 // or, for one specific image
 params.crsif  = 'file:///workdir/TREx_shared/projects/CELLRANGER_9.0.1.sif'
 ```

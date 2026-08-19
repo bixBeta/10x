@@ -62,9 +62,9 @@ jobs:
           # default engine is singularity: the container directives must point at
           # <sifdir>/<tool>-<version>.sif, and nothing may reference a registry
           cfg=$(nextflow config .)
-          echo "$cfg" | grep -q "/local/workdir/singularity/cellranger-9.0.1.sif" || {
+          echo "$cfg" | grep -q "/local/workdir/10x_analysis/singularity-sifs/cellranger-9.0.1.sif" || {
             echo "$cfg" | grep -i container; echo "sif path not resolved"; exit 1; }
-          echo "$cfg" | grep -q "/local/workdir/singularity/cellranger-arc-2.2.0.sif" || {
+          echo "$cfg" | grep -q "/local/workdir/10x_analysis/singularity-sifs/cellranger-arc-2.2.0.sif" || {
             echo "arc sif not resolved"; exit 1; }
           if echo "$cfg" | grep -q 'ghcr.io' ; then
             echo "config still references a registry"; exit 1
