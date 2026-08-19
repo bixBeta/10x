@@ -32,6 +32,26 @@ nextflow run bixBeta/10x -r main --help
 nextflow run bixBeta/10x -r main --listRefs
 ```
 
+Every param can also come from a YAML file, which keeps a run reproducible and
+the command line short:
+
+```yaml
+# params.yaml
+id:         BRC_1234
+sheet:      /local/workdir/10x_analysis/BRC_1234/sample-sheet.csv
+ref:        Canine
+crversion:  10.1.0
+localcores: 32
+localmem:   128
+```
+
+```bash
+nextflow run bixBeta/10x -r main -params-file params.yaml
+```
+
+Note the single dash: `-params-file` is a Nextflow option, not a pipeline
+param. Anything on the command line still wins over the file.
+
 Results land in `CELLRANGER/<label>/outs`, or `CELLRANGER_ARC/<label>/` for
 multiome, plus `pipeline_info/`. Everything is published as symlinks into the
 work directory, so nothing is duplicated — keep `work/` until you are done.
