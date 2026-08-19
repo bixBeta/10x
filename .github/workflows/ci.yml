@@ -59,7 +59,7 @@ jobs:
       - name: Singularity engine resolves the sif path
         run: |
           set -euo pipefail
-          # default engine is singularity: the container directive must point at
+          # default engine is singularity: the container directives must point at
           # <sifdir>/<tool>-<version>.sif, and nothing may reference a registry
           cfg=$(nextflow config .)
           echo "$cfg" | grep -q "/local/workdir/singularity/cellranger-9.0.1.sif" || {
@@ -69,17 +69,23 @@ jobs:
           if echo "$cfg" | grep -q 'ghcr.io' ; then
             echo "config still references a registry"; exit 1
           fi
+          echo "sif resolution OK"
 
-          # --sifdir relocates both images
-          printf "params.sifdir = '/shared/sif'\n" > test/sif.config
-          cfg=$(nextflow config . -c test/sif.config)
-          echo "$cfg" | grep -q "/shared/sif/cellranger-9.0.1.sif" || { echo "sifdir not honoured"; exit 1; }
+      - name: Engine is reported and forced correctly
+        run: |
+          set -euo pipefail
+          # the banner reports the resolved engine and image/binary
+          out=$(nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+                  --sifdir /shared/sif 2>&1)
+          echo "$out" | grep -qE 'engine +: singularity'            || { echo "$out" | tail -20; exit 1; }
+          echo "$out" | grep -q  '/shared/sif/cellranger-9.0.1.sif' || { echo "$out" | tail -20; exit 1; }
 
           # a binary path forces local for that tool
-          printf "params.crpath = '/programs/cellranger-9.0.1/cellranger'\n" > test/local.config
-          cfg=$(nextflow config . -c test/local.config)
-          echo "$cfg" | grep -q "crengine = 'local'" || { echo "crpath did not force local"; exit 1; }
-          echo "sif resolution OK"
+          out=$(nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+                  --crpath /programs/cellranger-9.0.1/cellranger 2>&1)
+          echo "$out" | grep -qE 'engine +: local'                              || { echo "$out" | tail -20; exit 1; }
+          echo "$out" | grep -q  '/programs/cellranger-9.0.1/cellranger'        || { echo "$out" | tail -20; exit 1; }
+          echo "engine selection OK"
 
       - name: Missing sif fails with a clear message
         run: |
