@@ -39,6 +39,8 @@ process CELLRANGER_COUNT {
         path "outs/metrics_summary.csv"                         , emit: metrics
         path "outs/*filtered_feature_bc_matrix.h5"              , emit: filtered_h5   , optional: true
         path "outs/*.bam*"                                      , emit: bam           , optional: true
+        path "${library}_web_summary.html"                      , emit: run_web_summary , optional: true
+        path "${library}_metrics_summary.csv"                   , emit: run_metrics     , optional: true
         path "versions.yml"                                     , emit: versions
 
     script:

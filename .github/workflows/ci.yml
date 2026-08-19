@@ -162,14 +162,6 @@ jobs:
             --ref   test/ref \
             --id    CI_TEST
 
-      - name: DEBUG publish
-        run: |
-          echo "--- launch dir ---"; ls -la | head -20
-          echo "--- task dirs ---"; find work -maxdepth 3 -name '.command.sh' | head -3
-          echo "--- files named *_web_summary.html anywhere ---"; find . -name '*_web_summary.html' 2>/dev/null | head -10
-          echo "--- one task dir listing ---"; d=$(find work -maxdepth 3 -name '.command.sh' | head -1); ls -la "$(dirname "$d")"
-          echo "--- that task's script ---"; sed -n '1,40p' "$d"
-
       - name: Check the grouping
         run: |
           set -euo pipefail
