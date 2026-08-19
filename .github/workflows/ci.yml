@@ -425,3 +425,35 @@ jobs:
             --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --aggr false
           test ! -d CELLRANGER_AGGR || { echo "--aggr false still ran aggr"; exit 1; }
           echo "aggr false honoured"
+
+      - name: params from a yaml file
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-yaml
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER CELLRANGER_AGGR "$CI_CAPTURE"
+
+          # covers both kinds of param: sheet/ref/r1length are read in main.nf,
+          # crversion/localcores/localmem are consumed while nextflow.config is
+          # parsed, so this proves the file reaches config level too
+          cat > test/params.yaml <<YAML
+          sheet: test/sample-sheet.csv
+          ref: test/ref
+          crpath: $PWD/test/fake-cellranger
+          crversion: 7.0.0
+          localcores: 2
+          localmem: 4
+          r1length: 26
+          aggr: false
+          YAML
+          sed -i 's/^          //' test/params.yaml
+          cat test/params.yaml
+
+          export FAKE_VERSION=7.0.0
+          nextflow run . -c test/ci.config -params-file test/params.yaml
+
+          grep -qx -- '--localcores=2'   "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--localmem=4'     "$CI_CAPTURE/JS4.command.txt"
+          grep -qx -- '--r1-length=26'   "$CI_CAPTURE/JS4.command.txt"
+          test ! -d CELLRANGER_AGGR || { echo "aggr: false from yaml was ignored"; exit 1; }
+          echo "params-file OK"
