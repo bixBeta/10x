@@ -21,15 +21,15 @@ Requires Nextflow >= 24.04, tested against 25.04.1.
 ## Usage
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --id BRC_1234 --sheet sample-sheet.csv --ref Human
+nextflow run bixBeta/10x -r main --id BRC_1234 --sheet sample-sheet.csv --ref Human
 ```
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --help
+nextflow run bixBeta/10x -r main --help
 ```
 
 ```bash
-nextflow run https://github.com/bixBeta/10x -r main --listRefs
+nextflow run bixBeta/10x -r main --listRefs
 ```
 
 Results land in `CELLRANGER/<label>/outs`, or `CELLRANGER_ARC/<label>/` for

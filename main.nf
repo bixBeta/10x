@@ -38,7 +38,7 @@ log.info """
 1  0  x      W  O  R  K  F  L  O  W  -  @bixBeta
 =======================================================================================================================================================================
 Usage:
-    nextflow run https://github.com/bixBeta/10x -r main < args ... >
+    nextflow run bixBeta/10x -r main < args ... >
 
 Args:
     * --help           : Prints this help documentation
