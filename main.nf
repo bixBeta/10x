@@ -143,6 +143,13 @@ Args:
     * --introns        : Set true/false to override --include-introns; default <null> ( tool default )
     * --r1length       : Trim R1 to this length; default <28>. Pass 0 to omit the flag.
     * --r2length       : Trim R2 to this length; default <null>
+    * --aggr           : Run cellranger aggr for labels that carry several libraries
+                         ( separate GEM wells ); default <true>. A label with one
+                         library is left alone: re-sequencing runs were already
+                         pooled into its single count.
+    * --normalize      : cellranger aggr --normalize; default <mapped>
+                       : 'mapped' subsamples deeper libraries to match the shallowest
+                       : 'none'   keeps every read
 
   10x software:
     * --crversion      : Cell Ranger version; default <9.0.1>

@@ -11,6 +11,7 @@
 |---|---|---|
 | `gex` | `cellranger count` | working |
 | `arc` | `cellranger-arc count` | working |
+| — | `cellranger aggr` | working, for multi-library labels |
 | `atac` | `cellranger-atac count` | planned |
 
 Requires Nextflow >= 24.04, tested against 25.04.1.
@@ -81,13 +82,20 @@ JS5,/local/Illumina/DRV/run2/.../Sample_SC2620_JS5_G3_Sofia_10488923_999XYZAB2_L
 ### Two GEM wells from one sample
 
 Give each its own `library`. They are counted separately, since barcodes are
-not comparable across GEM wells.
+not comparable across GEM wells, then combined with `cellranger aggr`.
 
 ```csv
 label,library,fastqs
 JS6,JS6_wellA,/local/.../Sample_SC2620_JS6A_G3_Scooter_10488923_253GGLLT4_L2
 JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_Scooter_10488923_253GGLLT4_L2
 ```
+
+You get a count per library plus `CELLRANGER_AGGR/JS6/`. Labels with a single
+library are left alone — a re-sequenced library was already pooled into one
+count, and aggregating it would only depth-normalise two halves of the same
+library against each other. `--aggr false` skips the step; `--normalize`
+controls Cell Ranger's own depth normalisation (`mapped`, the default, or
+`none`).
 
 ### A path with several samples in it
 
@@ -240,6 +248,8 @@ Notes for the build host:
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `180` | `--localmem` in GB **and** the memory reserved |
 | `--maxforks` | `2` | concurrent tasks **per process** |
+| `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
+| `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
 | `--crversion` / `--arcversion` | `9.0.1` / `2.2.0` | selects the image or install |
 | `--sifdir` | see above | where the `.sif` files live |
@@ -281,6 +291,7 @@ case.
 ```
 main.nf                            params, help, reference maps, workflows
 modules/cellranger/main.nf         cellranger count
+modules/cellrangeraggr/main.nf     cellranger aggr
 modules/cellrangerarc/main.nf      cellranger-arc count
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries
