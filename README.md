@@ -141,7 +141,7 @@ land in `CELLRANGER_ARC/<label>/`.
 | `--id` | `TREx_ID` | TREx Project ID |
 | `--sheet` | `sample-sheet.csv` | |
 | `--mode` | `gex` | `gex`, `atac`, `arc` |
-| `--ref` | — | key from `--listRefs`, or a path to a transcriptome dir |
+| `--ref` | — | key from `--listRefs`, or a full path to a reference dir |
 | `--chemistry` | `auto` | |
 | `--expectCells` / `--forceCells` | — | |
 | `--createBam` | `false` | |

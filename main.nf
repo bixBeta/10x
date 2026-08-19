@@ -286,27 +286,33 @@ if( params.listPrograms ) {
 refsBase = "/local/workdir/10x_analysis/REFS"
 
 refDir = [
-Apoculata_stonyCoral :"${refsBase}/Apoculata_stonyCoral",
-Canine               :"${refsBase}/Canine",
-Combo_Human_Mouse    :"${refsBase}/Combo_Human_Mouse",
-Feline               :"${refsBase}/Feline",
-Horse                :"${refsBase}/Horse",
-Human                :"${refsBase}/Human",
-MAIZE                :"${refsBase}/MAIZE",
-Mouse                :"${refsBase}/Mouse",
-Nematostella         :"${refsBase}/Nematostella"]
+Apoculata_stonyCoral    :"${refsBase}/Apoculata_stonyCoral/240514_fromSarahArnold/apoculata",
+Canine                  :"${refsBase}/Canine/CanFam3_1",
+Combo_Human_Mouse       :"${refsBase}/Combo_Human_Mouse/refdata-gex-GRCh38_and_GRCm39-2024-A",
+Combo_Human_Mouse_2020  :"${refsBase}/Combo_Human_Mouse/refdata-gex-GRCh38-and-mm10-2020-A",
+Feline                  :"${refsBase}/Feline/Fca126",
+Horse                   :"${refsBase}/Horse/EquCab3/ENSEMBL_annot116/spaceranger/EquCab3_ENS116",
+Horse_ENS112            :"${refsBase}/Horse/EquCab3/ENSEMBL_annot112/spaceranger/EquCab3_ENS112",
+Human                   :"${refsBase}/Human/refdata-gex-GRCh38-2024-A",
+MAIZE                   :"${refsBase}/MAIZE/MAIZE_CellRanger",
+Mouse                   :"${refsBase}/Mouse/refdata-gex-GRCm39-2024-A",
+Nematostella            :"${refsBase}/Nematostella/Nematostella2_2/Nematostella2_2_standard"]
 
-// ATAC / ARC references
-refDirAtac = [
-Canine               :"${refsBase}/Canine/atac",
-Human                :"${refsBase}/Human/atac",
-Mouse                :"${refsBase}/Mouse/atac"]
-
+// ARC references carry a regions/ dir alongside fasta / genes / star
 refDirArc = [
-CanFam3              :"${refsBase}/Canine/arc/CanFam3_Ensembl101annot",
-Canine               :"${refsBase}/Canine/arc",
-Human                :"${refsBase}/Human/arc",
-Mouse                :"${refsBase}/Mouse/arc"]
+Canine                  :"${refsBase}/Canine/arc/CanFam3_Ensembl101annot",
+Human                   :"${refsBase}/Human/refdata-cellranger-arc-GRCh38-2024-A",
+Mouse                   :"${refsBase}/Mouse/refdata-cellranger-arc-GRCm39-2024-A",
+Nematostella            :"${refsBase}/Nematostella/Nematostella2_2/Nematostella2_2",
+Nematostella_jaNemVect1 :"${refsBase}/Nematostella/jaNemVect1.1/NCBI/jaNemVect1_1"]
+
+// cellranger-atac takes the same arc style references, so atac mode reuses them
+// until it is implemented and the choice can be confirmed against a real run.
+refDirAtac = refDirArc
+
+// Not wired to a mode: VDJ needs cellranger multi / vdj, which this pipeline
+// does not run yet.
+//   ${refsBase}/Mouse/refdata-cellranger-vdj-GRCm38-alts-ensembl-7.0.0
 
 
 // A cellranger reference is a directory holding reference.json. A key that
