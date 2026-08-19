@@ -46,43 +46,31 @@ lands as `<label>_summary.csv`.
 
 ## Sample sheet
 
+Most runs need two columns:
+
 ```csv
 label,fastqs
 JS4,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2
 JS5,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2
 ```
 
-| column | required | notes |
-|---|---|---|
-| `label` | yes | your short name; becomes `--id` and the output folder |
-| `fastqs` | yes | the 10x delivery dir, or any fastq inside it |
-| `library` | no | one GEM well; defaults to `label` |
-| `sample` | only if ambiguous | the fastq prefix, when the path holds more than one |
-| `library_type` | no | defaults to `Gene Expression` |
+**`label`** — your short name for the library. It becomes the output folder and
+Cell Ranger's `--id`.
 
-`fastqs` reaches Cell Ranger untouched — **nothing is copied, staged or
-renamed**. Point it at the `Sample_*` delivery directory, the `Project_*`
-directory above it, or any fastq inside; a file resolves to its parent, since
-`--fastqs` takes a directory.
+**`fastqs`** — the 10x delivery directory, used exactly as given. Nothing is
+copied or renamed. Any fastq inside it works too, and resolves to its parent.
 
-`label` is yours: short, user defined, never derived from the path.
+The remaining columns are optional, one per situation:
 
-`--sample` is read off the filenames, because Cell Ranger needs the fastq
-prefix and not the directory name:
+| column | add it when |
+|---|---|
+| `library` | one sample was run in two GEM wells |
+| `sample` | the `fastqs` path holds more than one sample |
+| `library_type` | multiome, to mark the GEX and ATAC halves |
 
-```
-Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
-  SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
-  -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
-```
+### The same library sequenced twice
 
-It comes from the actual files rather than being parsed out of the directory
-name, so an unexpected naming variant is caught while reading the sheet.
-
-### Same library sequenced more than once
-
-Top-ups and extra flow cells: repeat the label. The directories are handed to
-Cell Ranger as one comma-separated `--fastqs`, which is how it pools them.
+Repeat the label. Both runs are pooled into one count.
 
 ```csv
 label,fastqs
@@ -90,15 +78,10 @@ JS5,/local/Illumina/DRV/run1/.../Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L
 JS5,/local/Illumina/DRV/run2/.../Sample_SC2620_JS5_G3_Sofia_10488923_999XYZAB2_L3
 ```
 
-The flow cell is part of the fastq prefix, so a top-up on a different flow cell
-has a *different* `--sample`. Both are collected and passed as
-`--sample=prefix1,prefix2` — passing only one would silently drop a run.
+### Two GEM wells from one sample
 
-### Several libraries from one sample
-
-Separate GEM wells: add the `library` column. Barcodes are not comparable
-across GEM wells, so each library is counted separately while staying tied to
-its `label`.
+Give each its own `library`. They are counted separately, since barcodes are
+not comparable across GEM wells.
 
 ```csv
 label,library,fastqs
@@ -106,11 +89,10 @@ JS6,JS6_wellA,/local/.../Sample_SC2620_JS6A_G3_Scooter_10488923_253GGLLT4_L2
 JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_Scooter_10488923_253GGLLT4_L2
 ```
 
-### When `sample` is required
+### A path with several samples in it
 
-One row is one library. If a path holds more than one fastq prefix — a
-`Project_*` directory carrying several samples — the row is ambiguous and is
-rejected rather than guessed at. Name the prefix explicitly:
+Pointing at a `Project_*` directory is fine, but name which sample the row
+means. Without it the run stops rather than guessing.
 
 ```csv
 label,fastqs,sample
@@ -119,9 +101,8 @@ JS4,/local/.../Project_10488923,SC2620_JS4_G3_Reign_10488923_253GGLLT4
 
 ### Multiome (`--mode arc`)
 
-One label carries a Gene Expression library and a Chromatin Accessibility
-library, told apart by `library_type`. They are not counted separately:
-`cellranger-arc` takes a `libraries.csv` naming both, which the pipeline writes.
+One label, two rows: the GEX library and the ATAC library, marked with
+`library_type`.
 
 ```csv
 label,fastqs,sample,library_type
@@ -129,30 +110,31 @@ JS4,/local/.../Project_10488522,SC2619_JS4_BC_MG3_8Healthy_10488522_25FWVCLT4,Ge
 JS4,/local/.../Project_10488522,SC2619_JS4_MA_8Healthy_10488522_23C52HLT4,Chromatin Accessibility
 ```
 
-becomes `JS4_libraries.csv`, published next to the results:
+The pipeline writes the `libraries.csv` that `cellranger-arc` needs and keeps a
+copy with the results. `library_type` also accepts shorthands (`gex`, `atac`,
+`adt`, `citeseq`, `crispr`, `cmo`), and the full 10x vocabulary for the modes
+still to come.
 
-```csv
-fastqs,sample,library_type
-/local/.../Project_10488522,SC2619_JS4_BC_MG3_8Healthy_10488522_25FWVCLT4,Gene Expression
-/local/.../Project_10488522,SC2619_JS4_MA_8Healthy_10488522_23C52HLT4,Chromatin Accessibility
+<details>
+<summary>How <code>--sample</code> is worked out</summary>
+
+Cell Ranger needs the fastq **prefix**, which is not the directory name:
+
+```
+Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
+  SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
+  -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
 ```
 
-then:
+It is read from the actual filenames, so an unexpected naming variant is caught
+while reading the sheet rather than inside Cell Ranger. The `sample` column
+overrides it.
 
-```bash
-cellranger-arc count --id=JS4 --reference=<ref> --libraries=JS4_libraries.csv \
-  --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam>
-```
+The flow cell is part of that prefix, so the same library re-sequenced on a
+different flow cell has a *different* prefix. Both are collected and passed as
+`--sample=prefix1,prefix2` — passing only one would silently drop a run.
 
-`library_type` uses 10x's own vocabulary so the value lands in `libraries.csv`
-verbatim: `Gene Expression`, `Chromatin Accessibility`, `Antibody Capture`,
-`CRISPR Guide Capture`, `Multiplexing Capture`, `VDJ-T`, `VDJ-B`. Shorthands are
-accepted (`gex`, `rna`, `atac`, `adt`, `citeseq`, `hto`, `crispr`, `cmo`,
-`cellplex`).
-
-It is stated rather than inferred because a standalone scRNA library and a
-standalone scATAC library from the same tissue are *not* multiome — different
-kit, different chemistry — and cannot go through `cellranger-arc`.
+</details>
 
 ## References
 
