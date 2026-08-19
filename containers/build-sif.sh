@@ -7,11 +7,11 @@
 #
 #    ./containers/build-sif.sh <tool> <version> <source> [outdir]
 #
-#  <source> is either an existing image, which is just converted:
-#    ./containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/singularity
-#
-#  or a 10x tarball, which is built from scratch:
+#  <source> is a 10x tarball, which is built from scratch:
 #    ./containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/singularity
+#
+#  or an existing image, which is just converted:
+#    ./containers/build-sif.sh cellranger 9.0.1 docker://<registry>/cellranger:9.0.1 /local/workdir/singularity
 #
 #  Produces <outdir>/<tool>-<version>.sif, which is exactly what the pipeline
 #  looks for:  --sifdir <outdir> --crversion <version>

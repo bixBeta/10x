@@ -220,10 +220,10 @@ From a 10x tarball:
 bash containers/build-sif.sh cellranger 10.1.0 cellranger-10.1.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
 ```
 
-or by converting an image you already have:
+An existing image can also be converted rather than rebuilt, if you have one:
 
 ```bash
-bash containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 /local/workdir/10x_analysis/singularity-sifs
+bash containers/build-sif.sh cellranger 9.0.1 docker://<registry>/cellranger:9.0.1 /local/workdir/10x_analysis/singularity-sifs
 ```
 
 It writes `<tool>-<version>.sif`, exactly the name the pipeline looks for, then

@@ -165,8 +165,8 @@ Args:
         * --arcsif     : Full path to the arc image.
 
                          Build one with:
-                         containers/build-sif.sh cellranger 9.0.1 docker://ghcr.io/bixbeta/cellranger:9.0.1 <sifdir>
-                         containers/build-sif.sh cellranger-arc 2.2.0 <tarball> <sifdir>
+                         containers/build-sif.sh cellranger     10.1.0 <tarball> <sifdir>
+                         containers/build-sif.sh cellranger-arc 2.2.0  <tarball> <sifdir>
 
       local:
         * --programs   : Where the installs live; default </programs>
