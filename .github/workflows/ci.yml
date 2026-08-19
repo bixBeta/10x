@@ -378,3 +378,40 @@ jobs:
             --crpath "$PWD/test/fake-cellranger" --checkversion false --localcores 2 --localmem 4
           grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
           echo "checkversion false honoured"
+
+      - name: aggr runs for multi-well labels only
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-aggr
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER CELLRANGER_AGGR "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4
+
+          echo "--- JS6_aggr.csv ---"
+          cat "$CI_CAPTURE/JS6.aggr.csv"
+
+          # JS6 has two GEM wells -> one aggr over both, in library order
+          test "$(wc -l < "$CI_CAPTURE/JS6.aggr.csv")" -eq 3
+          head -1 "$CI_CAPTURE/JS6.aggr.csv" | grep -qx 'sample_id,molecule_h5'
+          grep -qx -- 'JS6_wellA,JS6_wellA_molecule_info.h5' "$CI_CAPTURE/JS6.aggr.csv"
+          grep -qx -- 'JS6_wellB,JS6_wellB_molecule_info.h5' "$CI_CAPTURE/JS6.aggr.csv"
+          grep -qx -- '--normalize=mapped' "$CI_CAPTURE/JS6.aggr.command.txt"
+          test -d CELLRANGER_AGGR/JS6
+          test -f CELLRANGER_AGGR/JS6/JS6_aggr.csv
+          test -L web_summary_htmls/JS6_aggr_web_summary.html
+
+          # single library labels are left alone - a re-sequenced library was
+          # already pooled into one count, so there is nothing to aggregate
+          for lib in JS4 JS5 ; do
+            test ! -e "$CI_CAPTURE/${lib}.aggr.csv" || { echo "$lib should not have been aggregated"; exit 1; }
+            test ! -d "CELLRANGER_AGGR/${lib}"      || { echo "$lib should not have an aggr dir"; exit 1; }
+          done
+          echo "aggr OK"
+
+          # and it can be turned off
+          rm -rf CELLRANGER CELLRANGER_AGGR "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --aggr false
+          test ! -d CELLRANGER_AGGR || { echo "--aggr false still ran aggr"; exit 1; }
+          echo "aggr false honoured"

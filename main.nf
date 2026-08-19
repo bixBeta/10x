@@ -375,6 +375,7 @@ if( params.listRefs ) {
 
 include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
+include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
 include {   DUMP_VERSIONS            } from './modules/versions'
 
 
@@ -582,6 +583,27 @@ workflow GEX {
     CELLRANGER_COUNT(meta_ch, ref_ch)
 
     ch_versions = CELLRANGER_COUNT.out.versions.first()
+
+    // A label with several libraries means several GEM wells, counted
+    // separately. Combining those is what cellranger aggr is for. A label with
+    // one library needs nothing: re-sequencing runs were already pooled into
+    // that single count.
+    if( params.aggr ) {
+
+        aggr_ch = CELLRANGER_COUNT.out.molecule_info
+            | groupTuple
+            | filter { label, libraries, h5s -> libraries.size() > 1 }
+            | map { label, libraries, h5s ->
+                  def order = (0..<libraries.size()).sort { libraries[it] }
+                  [ label, order.collect { libraries[it] }, order.collect { h5s[it] } ]
+              }
+            | view { label, libraries, h5s ->
+                  "AGGR >> ${label}  ( ${libraries.size()} libraries: ${libraries.join(', ')} )" }
+
+        CELLRANGER_AGGR(aggr_ch)
+
+        ch_versions = ch_versions.mix( CELLRANGER_AGGR.out.versions.first() )
+    }
 
     DUMP_VERSIONS(ch_versions.collect())
 }

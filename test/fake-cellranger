@@ -18,17 +18,45 @@ if [ "${1:-}" = "--version" ] ; then
     exit 0
 fi
 
-ID="" ; FASTQS="" ; SAMPLES="" ; LIBRARIES=""
+SUBCMD="${1:-}"
+ID="" ; FASTQS="" ; SAMPLES="" ; LIBRARIES="" ; CSV=""
 for a in "$@" ; do
     case "$a" in
         --id=*)         ID="${a#--id=}"               ;;
         --fastqs=*)     FASTQS="${a#--fastqs=}"       ;;
         --sample=*)     SAMPLES="${a#--sample=}"      ;;
         --libraries=*)  LIBRARIES="${a#--libraries=}" ;;
+        --csv=*)        CSV="${a#--csv=}"             ;;
     esac
 done
 
 [ -n "$ID" ] || { echo "fake-cellranger: no --id given" >&2 ; exit 1 ; }
+
+# aggr form: --csv listing sample_id,molecule_h5. Every molecule file must be
+# present, which is what real cellranger aggr would fail on.
+if [ "$SUBCMD" = "aggr" ] ; then
+    [ -f "$CSV" ] || { echo "fake-cellranger: no such aggr csv: $CSV" >&2 ; exit 1 ; }
+
+    head -1 "$CSV" | grep -qx 'sample_id,molecule_h5' \
+        || { echo "fake-cellranger: bad aggr header: $(head -1 "$CSV")" >&2 ; exit 1 ; }
+
+    n=0
+    while IFS=',' read -r sid h5 ; do
+        [ -n "$sid" ] || continue
+        [ -e "$h5" ] || { echo "fake-cellranger: missing molecule file '$h5' for '$sid'" >&2 ; exit 1 ; }
+        n=$(( n + 1 ))
+    done < <( tail -n +2 "$CSV" )
+    [ "$n" -ge 2 ] || { echo "fake-cellranger: aggr needs at least 2 libraries, got $n" >&2 ; exit 1 ; }
+
+    mkdir -p "${ID}/outs"
+    touch "${ID}/outs/web_summary.html"
+    if [ -n "${CI_CAPTURE:-}" ] ; then
+        mkdir -p "$CI_CAPTURE"
+        printf '%s\n' "$@" > "${CI_CAPTURE}/${ID}.aggr.command.txt"
+        cp "$CSV"            "${CI_CAPTURE}/${ID}.aggr.csv"
+    fi
+    exit 0
+fi
 
 # arc form: --libraries csv instead of --fastqs / --sample. Check every row
 # points at reads that exist, which is what real cellranger-arc would fail on.
