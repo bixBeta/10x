@@ -52,10 +52,15 @@ case "$TOOL" in
     *) echo "unknown tool '$TOOL' (expected cellranger, cellranger-arc or cellranger-atac)" >&2 ; exit 1 ;;
 esac
 
-command -v singularity > /dev/null 2>&1 || command -v apptainer > /dev/null 2>&1 || {
-    echo "neither singularity nor apptainer is on PATH" >&2 ; exit 1 ; }
-
-RUNNER=$( command -v singularity 2>/dev/null || command -v apptainer )
+# resolved only once the inputs are known good, so a bad tarball reports itself
+# rather than hiding behind a missing runtime
+RUNNER=""
+need_runner () {
+    [ -n "$RUNNER" ] && return
+    command -v singularity > /dev/null 2>&1 || command -v apptainer > /dev/null 2>&1 || {
+        echo "neither singularity nor apptainer is on PATH" >&2 ; exit 1 ; }
+    RUNNER=$( command -v singularity 2>/dev/null || command -v apptainer )
+}
 
 mkdir -p "$OUTDIR"
 SIF="${OUTDIR}/${TOOL}-${VERSION}.sif"
@@ -73,6 +78,7 @@ SIF_BINDS="${SIF_BINDS:-/workdir /local /programs}"
 #   export SINGULARITY_DOCKER_PASSWORD=<token with read:packages>
 case "$SOURCE" in
     docker://*|oras://*|library://*|shub://*|*.sif)
+        need_runner
         echo "building ${SIF} from ${SOURCE}"
         # shellcheck disable=SC2086
         "$RUNNER" build $FAKEROOT "$SIF" "$SOURCE"
@@ -88,14 +94,35 @@ esac
 TARBALL="$SOURCE"
 [ -f "$TARBALL" ] || { echo "no such tarball, and not an image uri: $TARBALL" >&2 ; exit 1 ; }
 
-# the tarball must match the version, or the image would be mislabelled
+# the tarball must match the version, or the image would be mislabelled.
+# Read the top level component from the first entries, tolerating a leading ./
+TAR_ERR=$( mktemp )
 set +o pipefail
-TOP=$( tar -tzf "$TARBALL" 2>/dev/null | head -n1 )
+TOP=$( tar -tzf "$TARBALL" 2>"$TAR_ERR" | head -20 | sed 's#^\./##' | awk -F/ 'NF>0 && $1!="" {print $1}' | sort -u | head -n1 )
 set -o pipefail
-case "$TOP" in
-    "${TOOL}-${VERSION}/"*) : ;;
-    *) echo "tarball root is '$TOP', expected ${TOOL}-${VERSION}/ - tarball and version disagree" >&2 ; exit 1 ;;
-esac
+
+if [ -z "$TOP" ] ; then
+    echo "could not read '$TARBALL' as a gzipped tar." >&2
+    echo >&2
+    echo "  size : $( du -h "$TARBALL" 2>/dev/null | cut -f1 )" >&2
+    echo "  type : $( file -b "$TARBALL" 2>/dev/null )" >&2
+    if [ -s "$TAR_ERR" ] ; then
+        echo "  tar  : $( head -n2 "$TAR_ERR" | tr '\n' ' ' )" >&2
+    fi
+    echo >&2
+    echo "  A truncated download, or an expired 10x link that returned an error" >&2
+    echo "  page instead of the archive, both land here. Check the size against" >&2
+    echo "  the download page and fetch it again if it is short." >&2
+    rm -f "$TAR_ERR"
+    exit 1
+fi
+rm -f "$TAR_ERR"
+
+if [ "$TOP" != "${TOOL}-${VERSION}" ] ; then
+    echo "tarball contains '${TOP}/', expected '${TOOL}-${VERSION}/'" >&2
+    echo "  build it as:  bash $0 ${TOP%-*} ${TOP##*-} $TARBALL $OUTDIR" >&2
+    exit 1
+fi
 
 DEF=$( mktemp /tmp/${TOOL}-${VERSION}.XXXXXX.def )
 trap 'rm -f "$DEF"' EXIT
@@ -152,6 +179,7 @@ From: ubuntu:22.04
     Version ${VERSION}
 EOF
 
+need_runner
 echo "building ${SIF}"
 
 # shellcheck disable=SC2086
