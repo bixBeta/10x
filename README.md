@@ -152,7 +152,7 @@ land in `CELLRANGER_ARC/<label>/`.
 | `--r2length` | — | `--r2-length` |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `180` | `--localmem` in GB **and** the memory reserved |
-| `--maxforks` | `2` | processes running at once, pipeline wide |
+| `--maxforks` | `2` | concurrent tasks **per process** — 2 means 2 Cell Ranger runs at once |
 | `--crversion` | `9.0.1` | Cell Ranger version, selects the container tag |
 | `--crpath` | — | run a native install, e.g. `/programs/cellranger-9.0.1/cellranger` |
 | `--container` | — | full override, e.g. a local `.sif` |
@@ -175,6 +175,11 @@ library is:
 `--localcores` and `--localmem` set the Nextflow reservation *and* the Cell
 Ranger flags from one value, so what the scheduler holds and what Cell Ranger
 believes it has cannot drift apart.
+
+Every process retries a failed task twice before the run stops
+(`errorStrategy { task.attempt <= 2 ? 'retry' : 'finish' }`, `maxRetries 2`).
+`finish` lets tasks already running complete rather than killing them, so a
+late failure does not throw away hours of work on the other libraries.
 
 ### Running the native install instead of the container
 

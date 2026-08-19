@@ -145,7 +145,8 @@ Args:
   Runtime / resources:
     * --localcores     : cellranger --localcores, also the cpus reserved; default <32>
     * --localmem       : cellranger --localmem in GB, also the memory reserved; default <180>
-    * --maxforks       : how many processes run at once, pipeline wide; default <2>
+    * --maxforks       : concurrent tasks PER PROCESS, so 2 means up to 2 cellranger
+                         runs at once, each taking localcores / localmem; default <2>
     * --crversion      : Cell Ranger version, selects the container tag; default <9.0.1>
     * --crpath         : Run a native install instead of the container
                          e.g. --crpath /programs/cellranger-9.0.1/cellranger

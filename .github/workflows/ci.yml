@@ -40,6 +40,16 @@ jobs:
       - name: Generate test data
         run: bash test/make_test_data.sh
 
+      - name: Retry policy applies to every process
+        run: |
+          set -euo pipefail
+          # resolved config, not the source, so a withName block that silently
+          # overrode the global setting would show up here
+          nextflow config . | grep -q 'maxRetries' || { echo "maxRetries missing"; exit 1; }
+          nextflow config . | grep -q 'errorStrategy' || { echo "errorStrategy missing"; exit 1; }
+          nextflow config . | grep -q 'maxForks' || { echo "maxForks missing"; exit 1; }
+          nextflow config . | sed -n '/^process {/,/^}/p' | grep -E 'maxForks|maxRetries|errorStrategy'
+
       - name: Help text
         run: nextflow run . --help
 
