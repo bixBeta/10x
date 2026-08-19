@@ -174,6 +174,16 @@ jobs:
           test "$n" -eq 4 || { echo "expected 4 libraries, got $n"; ls CELLRANGER; exit 1; }
           echo "grouping OK: $(ls CELLRANGER | tr '\n' ' ')"
 
+          # flat collections, one link per library, prefixed with the label
+          for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
+            test -L "web_summary_htmls/${lib}_web_summary.html"   || { ls -l web_summary_htmls; echo "missing summary link for $lib"; exit 1; }
+            test -L "summary_metrics/${lib}_metrics_summary.csv"  || { ls -l summary_metrics;   echo "missing metrics link for $lib"; exit 1; }
+          done
+          # and they must be symlinks into the work dir, not copies
+          readlink "web_summary_htmls/JS4_web_summary.html" | grep -q '/work/' || {
+            echo "expected a symlink into work/"; exit 1; }
+          echo "collections OK: $(ls web_summary_htmls | tr '\n' ' ')"
+
       - name: Rejects a bad mode
         run: |
           if nextflow run . -stub-run -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref --mode nope ; then
@@ -257,7 +267,7 @@ jobs:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture-arc
         run: |
           set -euo pipefail
-          rm -rf CELLRANGER_ARC "$CI_CAPTURE"
+          rm -rf CELLRANGER_ARC web_summary_htmls summary_metrics "$CI_CAPTURE"
           export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
           nextflow run . -c test/ci.config --mode arc \
             --sheet test/sample-sheet-arc.csv \
@@ -288,6 +298,10 @@ jobs:
 
           # and the csv is kept next to the results
           test -f CELLRANGER_ARC/JS4/JS4_libraries.csv
+
+          # arc joins the same flat collections; its metrics file is summary.csv
+          test -L web_summary_htmls/JS4_web_summary.html || { ls -l web_summary_htmls; exit 1; }
+          test -L summary_metrics/JS4_summary.csv        || { ls -l summary_metrics;   exit 1; }
           echo "arc OK"
 
       - name: Ambiguous Project dir is rejected

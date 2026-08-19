@@ -15,6 +15,10 @@ process CELLRANGER_ARC_COUNT {
     publishDir "CELLRANGER_ARC/${label}" , mode: "symlink", overwrite: true , pattern: "outs/**"
     publishDir "CELLRANGER_ARC/${label}" , mode: "copy"   , overwrite: true , pattern: "*_libraries.csv"
 
+    // flat collections across labels, for a quick look over a whole run
+    publishDir "web_summary_htmls"       , mode: "symlink", overwrite: true , pattern: "outs/web_summary.html" , saveAs: { fn -> "${label}_" + fn.tokenize('/').last() }
+    publishDir "summary_metrics"         , mode: "symlink", overwrite: true , pattern: "outs/summary.csv"      , saveAs: { fn -> "${label}_" + fn.tokenize('/').last() }
+
     input:
         tuple val(label), val(rows)
         val ref

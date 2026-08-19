@@ -9,6 +9,8 @@ work/
 # excludes modules/cellranger/.
 /CELLRANGER/
 /CELLRANGER_ARC/
+/web_summary_htmls/
+/summary_metrics/
 /pipeline_info/
 report*.html
 timeline*.html

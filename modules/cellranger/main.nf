@@ -21,7 +21,11 @@ process CELLRANGER_COUNT {
 
     // cpus / memory come from --localcores and --localmem, see nextflow.config
 
-    publishDir "CELLRANGER/${library}" , mode: "symlink", overwrite: true , pattern: "outs/**"
+    publishDir "CELLRANGER/${library}"  , mode: "symlink", overwrite: true , pattern: "outs/**"
+
+    // flat collections across libraries, for a quick look over a whole run
+    publishDir "web_summary_htmls"      , mode: "symlink", overwrite: true , pattern: "outs/web_summary.html"    , saveAs: { fn -> "${library}_" + fn.tokenize('/').last() }
+    publishDir "summary_metrics"        , mode: "symlink", overwrite: true , pattern: "outs/metrics_summary.csv" , saveAs: { fn -> "${library}_" + fn.tokenize('/').last() }
 
     input:
         tuple val(library), val(label), val(fastqs), val(samples)
