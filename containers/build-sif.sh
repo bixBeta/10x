@@ -20,6 +20,15 @@
 #
 #  Building usually needs either root or --fakeroot. Set SIF_FAKEROOT=1 to add
 #  --fakeroot, or run the script under sudo.
+#
+#  Sites that auto-bind paths ( apptainer.conf "bind path = /workdir" ) fail the
+#  build with
+#      destination /workdir doesn't exist in container
+#  because build has no overlay to create the mount point with. The mount points
+#  are therefore created in %setup, which runs on the host before %post. Adjust
+#  the list with SIF_BINDS, e.g.
+#      SIF_BINDS="/workdir /local /programs /fs" bash build-sif.sh ...
+#  As a last resort apptainer build also takes --no-mount bind-paths.
 # =============================================================================
 
 set -euo pipefail
@@ -49,6 +58,10 @@ SIF="${OUTDIR}/${TOOL}-${VERSION}.sif"
 
 FAKEROOT=""
 [ "${SIF_FAKEROOT:-0}" = "1" ] && FAKEROOT="--fakeroot"
+
+# Mount points that must exist inside the image, because the site auto-binds
+# them. They are also what the pipeline binds at run time.
+SIF_BINDS="${SIF_BINDS:-/workdir /local /programs}"
 
 # ---- source is an existing image: convert it straight to a .sif -------------
 # Private packages need credentials first:
@@ -90,10 +103,23 @@ cat > "$DEF" <<EOF
 Bootstrap: docker
 From: ubuntu:22.04
 
+# Runs on the host, before the %post container is started. Auto-bound paths
+# need a destination inside the image or the build cannot enter it at all.
+%setup
+    ROOT="\${APPTAINER_ROOTFS:-\${SINGULARITY_ROOTFS}}"
+    for d in ${SIF_BINDS} ; do
+        mkdir -p "\${ROOT}\${d}"
+    done
+
 %files
     ${TARBALL} /tmp/tool.tar.gz
 
 %post
+    # keep the mount points in the finished image, for run time binds
+    for d in ${SIF_BINDS} ; do
+        mkdir -p "\${d}"
+    done
+
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \\
