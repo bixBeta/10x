@@ -23,9 +23,11 @@ process CELLRANGER_COUNT {
 
     publishDir "CELLRANGER/${library}"  , mode: "symlink", overwrite: true , pattern: "outs/**"
 
-    // flat collections across libraries, for a quick look over a whole run
-    publishDir "web_summary_htmls"      , mode: "symlink", overwrite: true , pattern: "outs/web_summary.html"    , saveAs: { fn -> "${library}_" + fn.tokenize('/').last() }
-    publishDir "summary_metrics"        , mode: "symlink", overwrite: true , pattern: "outs/metrics_summary.csv" , saveAs: { fn -> "${library}_" + fn.tokenize('/').last() }
+    // flat collections across libraries, for a quick look over a whole run.
+    // The label prefixed names are made in the task dir rather than with
+    // saveAs, so the pattern is a plain filename glob.
+    publishDir "web_summary_htmls"      , mode: "symlink", overwrite: true , pattern: "*_web_summary.html"
+    publishDir "summary_metrics"        , mode: "symlink", overwrite: true , pattern: "*_metrics_summary.csv"
 
     input:
         tuple val(library), val(label), val(fastqs), val(samples)
@@ -83,6 +85,16 @@ process CELLRANGER_COUNT {
     # lift outs/ up so publishDir and downstream modules see a stable path
     mv ${library}/outs outs
 
+    # label prefixed links for the run level collections
+    # if/then, not &&: nextflow runs task scripts under bash -ue, so a false
+    # test as the last command of a line would abort the task
+    if [ -e outs/web_summary.html ] ; then
+        ln -s outs/web_summary.html ${library}_web_summary.html
+    fi
+    if [ -e outs/metrics_summary.csv ] ; then
+        ln -s outs/metrics_summary.csv ${library}_metrics_summary.csv
+    fi
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         cellranger: \$( ${crBin} --version 2>&1 | head -1 | sed 's/.*cellranger[- ]//; s/[^0-9.].*\$//' )
@@ -95,6 +107,9 @@ process CELLRANGER_COUNT {
     touch outs/web_summary.html
     touch outs/metrics_summary.csv
     touch outs/filtered_feature_bc_matrix.h5
+
+    ln -s outs/web_summary.html    ${library}_web_summary.html
+    ln -s outs/metrics_summary.csv ${library}_metrics_summary.csv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

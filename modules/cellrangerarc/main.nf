@@ -16,8 +16,8 @@ process CELLRANGER_ARC_COUNT {
     publishDir "CELLRANGER_ARC/${label}" , mode: "copy"   , overwrite: true , pattern: "*_libraries.csv"
 
     // flat collections across labels, for a quick look over a whole run
-    publishDir "web_summary_htmls"       , mode: "symlink", overwrite: true , pattern: "outs/web_summary.html" , saveAs: { fn -> "${label}_" + fn.tokenize('/').last() }
-    publishDir "summary_metrics"         , mode: "symlink", overwrite: true , pattern: "outs/summary.csv"      , saveAs: { fn -> "${label}_" + fn.tokenize('/').last() }
+    publishDir "web_summary_htmls"       , mode: "symlink", overwrite: true , pattern: "*_web_summary.html"
+    publishDir "summary_metrics"         , mode: "symlink", overwrite: true , pattern: "*_summary.csv"
 
     input:
         tuple val(label), val(rows)
@@ -29,6 +29,8 @@ process CELLRANGER_ARC_COUNT {
         path "outs/web_summary.html"                            , emit: web_summary
         path "outs/summary.csv"                                 , emit: metrics       , optional: true
         path "outs/*filtered_feature_bc_matrix.h5"              , emit: filtered_h5   , optional: true
+        path "${label}_web_summary.html"                        , emit: run_web_summary , optional: true
+        path "${label}_summary.csv"                             , emit: run_metrics     , optional: true
         path "versions.yml"                                     , emit: versions
 
     script:
@@ -75,6 +77,16 @@ process CELLRANGER_ARC_COUNT {
     # lift outs/ up so publishDir and downstream modules see a stable path
     mv ${label}/outs outs
 
+    # label prefixed links for the run level collections
+    # if/then, not &&: nextflow runs task scripts under bash -ue, so a false
+    # test as the last command of a line would abort the task
+    if [ -e outs/web_summary.html ] ; then
+        ln -s outs/web_summary.html ${label}_web_summary.html
+    fi
+    if [ -e outs/summary.csv ] ; then
+        ln -s outs/summary.csv ${label}_summary.csv
+    fi
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         cellranger-arc: \$( ${arcBin} --version 2>&1 | head -1 | sed 's/.*cellranger-arc[- ]//; s/[^0-9.].*\$//' )
@@ -90,6 +102,9 @@ process CELLRANGER_ARC_COUNT {
     mkdir -p outs
     touch outs/web_summary.html
     touch outs/summary.csv
+
+    ln -s outs/web_summary.html ${label}_web_summary.html
+    ln -s outs/summary.csv      ${label}_summary.csv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
