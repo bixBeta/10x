@@ -225,9 +225,12 @@ def checkEngine(engine, bin, image, what) {
 
     if( engine == "singularity" ) {
 
-        if( image ==~ /^[a-z]+:\/\/.*/ ) return      // docker:// etc, resolved by singularity
+        def local = image.replaceFirst(/^file:\/\//, '')
 
-        if( file(image).exists() ) return
+        // docker:// and friends are resolved by singularity, not by us
+        if( local ==~ /^[a-z]+:\/\/.*/ ) return
+
+        if( file(local).exists() ) return
 
         def built = file("${params.sifdir}/*.sif")
         def avail = ( built instanceof List ? built : ( built ? [built] : [] ) )

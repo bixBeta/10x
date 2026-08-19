@@ -126,6 +126,7 @@ jobs:
           # --programs + --crversion build the path, no --crpath needed
           mkdir -p fakeprograms/cellranger-8.0.1
           cp test/fake-cellranger fakeprograms/cellranger-8.0.1/cellranger
+          export FAKE_VERSION=8.0.1
           nextflow run . -c test/ci.config --engine local --sheet test/sample-sheet.csv --ref test/ref \
             --programs "$PWD/fakeprograms" --crversion 8.0.1 \
             --localcores 2 --localmem 4
@@ -237,6 +238,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf CELLRANGER_ARC "$CI_CAPTURE"
+          export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
           nextflow run . -c test/ci.config --mode arc \
             --sheet test/sample-sheet-arc.csv \
             --ref   CanFam3 \
@@ -306,9 +308,39 @@ jobs:
           echo "native gex OK"
 
           rm -rf CELLRANGER_ARC
+          export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
           nextflow run . -c test/native.config --mode arc \
             --sheet test/sample-sheet-arc.csv --ref CanFam3 \
             --arcpath "$PWD/test/fake-cellranger" \
             --localcores 2 --localmem 4
           grep -qx -- '--libraries=JS4_libraries.csv' "$CI_CAPTURE/JS4.command.txt"
           echo "native arc OK"
+
+      - name: Version guard catches a mislabelled image
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-guard
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER "$CI_CAPTURE"
+
+          # the binary reports 7.0.0 while the run asks for 9.0.1
+          export FAKE_VERSION=7.0.0
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+                  --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 2>&1) && {
+            echo "expected a version mismatch failure"; exit 1; }
+          echo "$out" | grep -q 'asked for cellranger 9.0.1 but' || { echo "$out" | tail -25; echo "wrong error"; exit 1; }
+          echo "version mismatch rejected"
+
+          # same binary, asked for what it actually is -> runs
+          rm -rf CELLRANGER "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --crversion 7.0.0 --localcores 2 --localmem 4
+          grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
+          echo "matching version accepted"
+
+          # and the check can be switched off
+          rm -rf CELLRANGER "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --checkversion false --localcores 2 --localmem 4
+          grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
+          echo "checkversion false honoured"

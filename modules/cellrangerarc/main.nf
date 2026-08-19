@@ -1,4 +1,6 @@
 createBam       = params.createBam
+checkversion    = params.checkversion
+wantversion     = params.arcversion
 
 // resolved in nextflow.config from --arcpath, or --arcversion + --programs
 arcBin          = params.arcbin
@@ -42,6 +44,21 @@ process CELLRANGER_ARC_COUNT {
 
     echo "--- ${label}_libraries.csv ---"
     cat ${label}_libraries.csv
+
+    # The image or install is only labelled with a version - ask the tool itself
+    # before counting anything, so a mislabelled sif cannot silently produce
+    # results from the wrong cellranger-arc.
+    if [ "${checkversion}" = "true" ] ; then
+        have=\$( ${arcBin} --version 2>&1 | head -1 | sed 's/.*cellranger-arc[- ]//; s/[^0-9.].*\$//' )
+        if [ -z "\$have" ] ; then
+            echo "WARN: could not read a version from cellranger-arc --version, skipping the check" >&2
+        elif [ "\$have" != "${wantversion}" ] ; then
+            echo "ERROR: asked for cellranger-arc ${wantversion} but ${arcBin} reports \$have" >&2
+            echo "       Set --arcversion to match, point at another image with --arcsif, or pass --checkversion false." >&2
+            exit 1
+        fi
+    fi
+
 
     ${arcBin} count \
         --id=${label} \

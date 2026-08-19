@@ -11,8 +11,10 @@
 
 set -euo pipefail
 
+# FAKE_TOOL / FAKE_VERSION let CI drive the pipeline's version guard
 if [ "${1:-}" = "--version" ] ; then
-    echo "cellranger cellranger-9.0.1"
+    t="${FAKE_TOOL:-cellranger}"
+    echo "${t} ${t}-${FAKE_VERSION:-9.0.1}"
     exit 0
 fi
 

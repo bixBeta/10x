@@ -5,6 +5,8 @@ createBam       = params.createBam
 introns         = params.introns
 r1length        = params.r1length
 r2length        = params.r2length
+checkversion    = params.checkversion
+wantversion     = params.crversion
 
 // resolved in nextflow.config from --crpath, or --crversion + --programs
 crBin           = params.crbin
@@ -50,6 +52,20 @@ process CELLRANGER_COUNT {
     def intronArg   = introns != null ? "--include-introns=${introns}" : ""
 
     """
+    # The image or install is only labelled with a version - ask the tool itself
+    # before counting anything, so a mislabelled sif cannot silently produce
+    # results from the wrong cellranger.
+    if [ "${checkversion}" = "true" ] ; then
+        have=\$( ${crBin} --version 2>&1 | head -1 | sed 's/.*cellranger[- ]//; s/[^0-9.].*\$//' )
+        if [ -z "\$have" ] ; then
+            echo "WARN: could not read a version from cellranger --version, skipping the check" >&2
+        elif [ "\$have" != "${wantversion}" ] ; then
+            echo "ERROR: asked for cellranger ${wantversion} but ${crBin} reports \$have" >&2
+            echo "       Set --crversion to match, point at another image with --crsif, or pass --checkversion false." >&2
+            exit 1
+        fi
+    fi
+
     ${crBin} count \
         --id=${library} \
         --localcores=${task.cpus} \

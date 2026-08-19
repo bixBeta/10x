@@ -238,12 +238,30 @@ the pipeline looks for. Building usually needs root or `--fakeroot`; set
 The script knows the two install layouts — `cellranger` keeps its executable at
 the top of the install dir, `cellranger-arc` in `bin/` — and puts both on `PATH`.
 
-Set the SIF location once for everyone by adding it to a site config rather than
-asking users to pass `--sifdir`:
+Set the SIF location once for everyone in a site config rather than asking
+users to pass `--sifdir`, or pin an image outright:
 
 ```groovy
 params.sifdir = '/local/workdir/singularity'
+// or, for one specific image
+params.crsif  = 'file:///workdir/TREx_shared/projects/CELLRANGER_9.0.1.sif'
 ```
+
+### Which version am I actually running?
+
+The filename is only a claim — `cellranger-9.0.1.sif` can contain anything. So
+before counting anything, the pipeline asks the tool its own version inside the
+image and fails if it disagrees with what you asked for:
+
+```
+ERROR: asked for cellranger 9.0.1 but cellranger reports 7.0.0
+       Set --crversion to match, point at another image with --crsif, or pass --checkversion false.
+```
+
+This applies to `--engine local` too, where `--crpath` can point at any binary.
+It costs milliseconds and turns a silent wrong-version result into an immediate
+stop. `--checkversion false` disables it. The version Cell Ranger reported is
+also recorded in `pipeline_info/software_versions.yml` for every run.
 
 ## Development
 
