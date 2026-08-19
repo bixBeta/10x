@@ -181,7 +181,7 @@ Args:
 
   Runtime / resources:
     * --localcores     : cellranger --localcores, also the cpus reserved; default <32>
-    * --localmem       : cellranger --localmem in GB, also the memory reserved; default <180>
+    * --localmem       : cellranger --localmem in GB, also the memory reserved; default <128>
     * --maxforks       : concurrent tasks PER PROCESS, so 2 means up to 2 cellranger
                          runs at once, each taking localcores / localmem; default <2>
 
