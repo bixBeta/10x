@@ -20,8 +20,13 @@ Requires Nextflow >= 24.04, tested against 25.04.1.
 
 ## Usage
 
-Copy [`params.yaml`](params.yaml) next to your sample sheet, set `ref` and
-anything else you need, then:
+Grab [`params.yaml`](params.yaml) next to your sample sheet:
+
+```bash
+wget https://raw.githubusercontent.com/bixBeta/10x/main/params.yaml
+```
+
+Set `ref` and anything else you need, then:
 
 ```bash
 nextflow run bixBeta/10x -r main -params-file params.yaml
