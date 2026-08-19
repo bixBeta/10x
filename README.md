@@ -20,6 +20,25 @@ Requires Nextflow >= 24.04, tested against 25.04.1.
 
 ## Usage
 
+Copy [`params.yaml`](params.yaml) next to your sample sheet, set `ref` and
+anything else you need, then:
+
+```bash
+nextflow run bixBeta/10x -r main -params-file params.yaml
+```
+
+It carries every default with comments, so a line only needs changing if you
+want something else. Note the single dash: `-params-file` is a Nextflow option,
+not a pipeline param.
+
+The command line still wins over the file, which is handy for one-off tweaks:
+
+```bash
+nextflow run bixBeta/10x -r main -params-file params.yaml --crversion 10.1.0
+```
+
+Everything can be passed directly instead, if you prefer:
+
 ```bash
 nextflow run bixBeta/10x -r main --id BRC_1234 --sheet sample-sheet.csv --ref Human
 ```
@@ -30,22 +49,6 @@ nextflow run bixBeta/10x -r main --help
 
 ```bash
 nextflow run bixBeta/10x -r main --listRefs
-```
-
-Every param can also come from a YAML file, which keeps a run reproducible and
-the command line short. [`params.yaml`](params.yaml) in this repo carries every
-default with comments — copy it next to your sample sheet and edit:
-
-```bash
-nextflow run bixBeta/10x -r main -params-file params.yaml
-```
-
-Note the single dash: `-params-file` is a Nextflow option, not a pipeline
-param. Anything on the command line still wins over the file, which is handy
-for one-off tweaks:
-
-```bash
-nextflow run bixBeta/10x -r main -params-file params.yaml --crversion 10.1.0
 ```
 
 Results land in `CELLRANGER/<label>/outs`, or `CELLRANGER_ARC/<label>/` for

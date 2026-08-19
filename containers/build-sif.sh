@@ -14,7 +14,7 @@
 #    ./containers/build-sif.sh cellranger 9.0.1 docker://<registry>/cellranger:9.0.1 /local/workdir/singularity
 #
 #  Produces <outdir>/<tool>-<version>.sif, which is exactly what the pipeline
-#  looks for:  --sifdir <outdir> --crversion <version>
+#  looks for, i.e. sifdir + crversion / arcversion in params.yaml
 #
 #  Nothing is pushed anywhere; the image stays on this machine.
 #
@@ -194,5 +194,6 @@ case "$TOOL" in
     cellranger-arc)  VERFLAG="--arcversion"  ;;
     *)               VERFLAG="--crversion"   ;;
 esac
-echo "use it with:"
-echo "  nextflow run bixBeta/10x -r main --sifdir ${OUTDIR} ${VERFLAG} ${VERSION}"
+echo "use it with, in params.yaml:"
+echo "  sifdir:     ${OUTDIR}"
+echo "  ${VERFLAG#--}: ${VERSION}"

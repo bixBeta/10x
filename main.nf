@@ -38,7 +38,11 @@ log.info """
 1  0  x      W  O  R  K  F  L  O  W  -  @bixBeta
 =======================================================================================================================================================================
 Usage:
+    nextflow run bixBeta/10x -r main -params-file params.yaml
     nextflow run bixBeta/10x -r main < args ... >
+
+    params.yaml ships with the repo and carries every default, commented.
+    Anything on the command line overrides it.
 
 Args:
     * --help           : Prints this help documentation
