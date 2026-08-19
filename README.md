@@ -3,7 +3,9 @@
 [![ci](https://github.com/bixBeta/10x/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bixBeta/10x/actions/workflows/ci.yml)
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-25.04.1-23aa62.svg)](https://www.nextflow.io/)
 [![Singularity](https://img.shields.io/badge/container-Singularity-1d355c.svg)](https://sylabs.io/singularity/)
-[![Cell Ranger](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
+[![cellranger 10.1.0](https://img.shields.io/badge/cellranger-10.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
+[![cellranger 9.0.1](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
+[![cellranger-arc 2.2.0](https://img.shields.io/badge/cellranger--arc-2.2.0-6f42c1.svg)](https://www.10xgenomics.com/support/software/cell-ranger-arc)
 
 <hr>
 
@@ -178,7 +180,15 @@ Two engines, `singularity` by default:
 | `singularity` | a locally built image | `<sifdir>/cellranger-<crversion>.sif` |
 | `local` | a native install | `/programs/cellranger-<crversion>/cellranger` |
 
-`--sifdir` defaults to `/local/workdir/10x_analysis/singularity-sifs`.
+Images currently built, in `--sifdir`
+(`/local/workdir/10x_analysis/singularity-sifs`):
+
+| image | select with |
+|---|---|
+| `cellranger-9.0.1.sif` | `--crversion 9.0.1` *(default)* |
+| `cellranger-10.1.0.sif` | `--crversion 10.1.0` |
+| `cellranger-arc-2.2.0.sif` | `--arcversion 2.2.0` *(default)* |
+
 `--crsif` / `--arcsif` name an image directly. `--crpath` / `--arcpath` name a
 binary and force `local` for that tool. `--listPrograms` shows what is installed
 under `--programs`.
