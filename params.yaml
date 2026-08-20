@@ -23,10 +23,21 @@ ref:           Canine
 # ---- 10x software -----------------------------------------------------------
 # Images are built locally with containers/build-sif.sh and picked up as
 # <sifdir>/cellranger-<crversion>.sif  /  cellranger-arc-<arcversion>.sif
+#
+# Built and ready to use:
+#
+#   cellranger        9.0.1     cellranger-9.0.1.sif
+#                     10.1.0    cellranger-10.1.0.sif
+#   cellranger-arc    2.2.0     cellranger-arc-2.2.0.sif
+#
+# Swap by changing the version below - nothing else needs to change. Anything
+# not listed has to be built first:
+#   bash containers/build-sif.sh cellranger <version> <tarball> <sifdir>
+#
 engine:        singularity
 sifdir:        /local/workdir/10x_analysis/singularity-sifs
-crversion:     9.0.1                  # gex
-arcversion:    2.2.0                  # arc
+crversion:     9.0.1                  # gex : 9.0.1 | 10.1.0
+arcversion:    2.2.0                  # arc : 2.2.0
 
 # The tool is asked its own version inside the image and the run stops if it
 # disagrees with the above. Only turn this off for an unlabelled image.
