@@ -21,6 +21,12 @@ process CELLRANGER_COUNT {
 
     // cpus / memory come from --localcores and --localmem, see nextflow.config
 
+    // The whole outs mirrored as ONE symlink into the task dir, so everything
+    // cellranger wrote is reachable from the run dir without copying anything.
+    // pattern "outs" matches the directory output; "outs/**" would only match
+    // the handful of files the module declares individually.
+    publishDir "CELLRANGER/${library}"  , mode: "symlink", overwrite: true , pattern: "outs"
+
     // flat collections across libraries, for a quick look over a whole run.
     // The label prefixed names are made in the task dir rather than with
     // saveAs, so the pattern is a plain filename glob.

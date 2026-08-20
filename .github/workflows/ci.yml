@@ -178,7 +178,6 @@ jobs:
           # 5 sheet rows -> 4 libraries: JS5's two runs pool into one count,
           # JS6's two GEM wells stay separate. The per library CELLRANGER dir is
           # gone, so the collections are what proves the grouping.
-          test ! -d CELLRANGER || { echo "CELLRANGER dir should no longer be published"; exit 1; }
           for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
             test -L "summary_metrics/${lib}_metrics_summary.csv" || { ls -l summary_metrics; echo "missing $lib"; exit 1; }
           done
@@ -192,6 +191,15 @@ jobs:
             test -L "summary_metrics/${lib}_metrics_summary.csv"  || { ls -l summary_metrics;   echo "missing metrics link for $lib"; exit 1; }
           done
           test -f summary_metrics/ALL_metrics_summary.csv || { ls -l summary_metrics; echo "no combined table"; exit 1; }
+
+          # outs mirrored as one symlink per label, and the mirror must reach
+          # files the module never declares as outputs
+          for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
+            test -L "CELLRANGER/$lib/outs" || { ls -lR CELLRANGER | head -20; echo "no outs mirror for $lib"; exit 1; }
+            test -d "CELLRANGER/$lib/outs" || { echo "outs mirror for $lib does not resolve"; exit 1; }
+          done
+          test -e CELLRANGER/JS4/outs/molecule_info.h5 || { ls -l CELLRANGER/JS4/outs; echo "mirror is not the full outs"; exit 1; }
+          echo "outs mirror OK: $(ls CELLRANGER/JS4/outs | tr '\n' ' ')"
           # and they must be symlinks into the work dir, not copies
           readlink "web_summary_htmls/JS4_web_summary.html" | grep -q '/work/' || {
             echo "expected a symlink into work/"; exit 1; }
@@ -325,8 +333,9 @@ jobs:
             echo "arc command must not carry gex-only flags"; exit 1
           fi
 
-          # and the csv is kept next to the results
+          # and the csv is kept next to the results, beside the outs mirror
           test -f CELLRANGER_ARC/JS4/JS4_libraries.csv
+          test -L CELLRANGER_ARC/JS4/outs
 
           # arc joins the same flat collections; its metrics file is summary.csv
           test -L web_summary_htmls/JS4_web_summary.html || { ls -l web_summary_htmls; exit 1; }
@@ -433,6 +442,7 @@ jobs:
           grep -qx -- 'JS6_wellB,JS6_wellB_molecule_info.h5' "$CI_CAPTURE/JS6.aggr.csv"
           grep -qx -- '--normalize=mapped' "$CI_CAPTURE/JS6.aggr.command.txt"
           test -d CELLRANGER_AGGR/JS6
+          test -L CELLRANGER_AGGR/JS6/outs
           test -f CELLRANGER_AGGR/JS6/JS6_aggr.csv
           test -L web_summary_htmls/JS6_aggr_web_summary.html
 

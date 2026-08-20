@@ -12,7 +12,7 @@ process CELLRANGER_ARC_COUNT {
 
     // cpus / memory come from --localcores and --localmem, see nextflow.config
 
-    publishDir "CELLRANGER_ARC/${label}" , mode: "symlink", overwrite: true , pattern: "outs/**"
+    publishDir "CELLRANGER_ARC/${label}" , mode: "symlink", overwrite: true , pattern: "outs"
     publishDir "CELLRANGER_ARC/${label}" , mode: "copy"   , overwrite: true , pattern: "*_libraries.csv"
 
     // flat collections across labels, for a quick look over a whole run

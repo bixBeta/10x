@@ -12,7 +12,7 @@ process CELLRANGER_AGGR {
 
     // cpus / memory come from --localcores and --localmem, see nextflow.config
 
-    publishDir "CELLRANGER_AGGR/${label}" , mode: "symlink", overwrite: true , pattern: "outs/**"
+    publishDir "CELLRANGER_AGGR/${label}" , mode: "symlink", overwrite: true , pattern: "outs"
     publishDir "CELLRANGER_AGGR/${label}" , mode: "copy"   , overwrite: true , pattern: "*_aggr.csv"
     publishDir "web_summary_htmls"        , mode: "symlink", overwrite: true , pattern: "*_aggr_web_summary.html"
 
