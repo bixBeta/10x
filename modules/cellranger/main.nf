@@ -21,8 +21,6 @@ process CELLRANGER_COUNT {
 
     // cpus / memory come from --localcores and --localmem, see nextflow.config
 
-    publishDir "CELLRANGER/${library}"  , mode: "symlink", overwrite: true , pattern: "outs/**"
-
     // flat collections across libraries, for a quick look over a whole run.
     // The label prefixed names are made in the task dir rather than with
     // saveAs, so the pattern is a plain filename glob.

@@ -176,19 +176,22 @@ jobs:
         run: |
           set -euo pipefail
           # 5 sheet rows -> 4 libraries: JS5's two runs pool into one count,
-          # JS6's two GEM wells stay separate.
+          # JS6's two GEM wells stay separate. The per library CELLRANGER dir is
+          # gone, so the collections are what proves the grouping.
+          test ! -d CELLRANGER || { echo "CELLRANGER dir should no longer be published"; exit 1; }
           for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
-            test -d "CELLRANGER/$lib" || { echo "missing CELLRANGER/$lib"; exit 1; }
+            test -L "summary_metrics/${lib}_metrics_summary.csv" || { ls -l summary_metrics; echo "missing $lib"; exit 1; }
           done
-          n=$(ls -1 CELLRANGER | wc -l)
-          test "$n" -eq 4 || { echo "expected 4 libraries, got $n"; ls CELLRANGER; exit 1; }
-          echo "grouping OK: $(ls CELLRANGER | tr '\n' ' ')"
+          n=$(ls -1 summary_metrics/*_metrics_summary.csv | grep -vc ALL_ || true)
+          test "$n" -eq 4 || { echo "expected 4 libraries, got $n"; ls summary_metrics; exit 1; }
+          echo "grouping OK: $(ls summary_metrics | tr '\n' ' ')"
 
           # flat collections, one link per library, prefixed with the label
           for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
             test -L "web_summary_htmls/${lib}_web_summary.html"   || { ls -l web_summary_htmls; echo "missing summary link for $lib"; exit 1; }
             test -L "summary_metrics/${lib}_metrics_summary.csv"  || { ls -l summary_metrics;   echo "missing metrics link for $lib"; exit 1; }
           done
+          test -f summary_metrics/ALL_metrics_summary.csv || { ls -l summary_metrics; echo "no combined table"; exit 1; }
           # and they must be symlinks into the work dir, not copies
           readlink "web_summary_htmls/JS4_web_summary.html" | grep -q '/work/' || {
             echo "expected a symlink into work/"; exit 1; }
@@ -237,6 +240,14 @@ jobs:
             echo "fastqs were staged, expected pass-through"; exit 1
           fi
           echo "pass-through OK"
+
+          echo "--- ALL_metrics_summary.csv ---"
+          cat summary_metrics/ALL_metrics_summary.csv
+          # one header plus one row per library, and a real file not a link
+          test ! -L summary_metrics/ALL_metrics_summary.csv
+          test "$(wc -l < summary_metrics/ALL_metrics_summary.csv)" -eq 5
+          test "$(grep -c 'Estimated Number of Cells' summary_metrics/ALL_metrics_summary.csv)" -eq 1
+          echo "combined metrics OK"
 
           test -s pipeline_info/software_versions.yml
           grep -q 'cellranger' pipeline_info/software_versions.yml
@@ -320,6 +331,12 @@ jobs:
           # arc joins the same flat collections; its metrics file is summary.csv
           test -L web_summary_htmls/JS4_web_summary.html || { ls -l web_summary_htmls; exit 1; }
           test -L summary_metrics/JS4_summary.csv        || { ls -l summary_metrics;   exit 1; }
+
+          # arc columns differ from gex, so it gets its own combined table
+          echo "--- ALL_summary.csv ---"
+          cat summary_metrics/ALL_summary.csv
+          test "$(wc -l < summary_metrics/ALL_summary.csv)" -eq 2
+          grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/ALL_summary.csv
           echo "arc OK"
 
       - name: Ambiguous Project dir is rejected

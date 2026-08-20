@@ -387,6 +387,7 @@ if( params.listRefs ) {
 include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
+include {   COMBINE_METRICS          } from './modules/metrics'
 include {   DUMP_VERSIONS            } from './modules/versions'
 
 
@@ -595,6 +596,14 @@ workflow GEX {
 
     ch_versions = CELLRANGER_COUNT.out.versions.first()
 
+    // one table for the whole run, header once
+    COMBINE_METRICS(
+        CELLRANGER_COUNT.out.run_metrics
+            | collect
+            | filter { it }
+            | map { csvs -> [ "ALL_metrics_summary.csv", csvs ] }
+    )
+
     // A label with several libraries means several GEM wells, counted
     // separately. Combining those is what cellranger aggr is for. A label with
     // one library needs nothing: re-sequencing runs were already pooled into
@@ -666,6 +675,15 @@ workflow ARC {
               "MULTIOME >> ${label}  ( libraries: " + rows.collect{ "${it[1]} [${it[2]}]" }.join(' + ') + " )" }
 
     CELLRANGER_ARC_COUNT(arc_ch, ref_ch)
+
+    // arc reports summary.csv, whose columns differ from the gex table, so it
+    // gets its own combined file rather than being stacked onto that one
+    COMBINE_METRICS(
+        CELLRANGER_ARC_COUNT.out.run_metrics
+            | collect
+            | filter { it }
+            | map { csvs -> [ "ALL_summary.csv", csvs ] }
+    )
 
     DUMP_VERSIONS( CELLRANGER_ARC_COUNT.out.versions.first().collect() )
 }
