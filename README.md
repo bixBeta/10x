@@ -60,7 +60,8 @@ The run directory gathers the summaries so a whole run can be skimmed at a
 glance:
 
 ```
-web_summary_htmls/    JS4_web_summary.html     JS5_web_summary.html    ...
+CELLRANGER/JS4/outs   -> work/../outs        the full cellranger output
+web_summary_htmls/    JS4_web_summary.html   JS5_web_summary.html    ...
 summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv ...
                       ALL_metrics_summary.csv
 pipeline_info/        software_versions.yml
@@ -72,9 +73,14 @@ different columns it gets its own `ALL_summary.csv`; `CELLRANGER_ARC/<label>/`
 also keeps the generated `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the
 aggregated result.
 
-The per library links are symlinks into `work/`, so nothing is duplicated —
-keep `work/` until you are done. **The full Cell Ranger `outs` is not
-published**; it lives in the task directory under `work/`.
+`CELLRANGER/<label>/outs` is a single symlink to the task's real `outs`, so
+everything Cell Ranger wrote — matrices, `molecule_info.h5`, `analysis/`, the
+BAM if asked for — is reachable from the run directory without copying
+anything. Multiome and aggregation mirror theirs the same way under
+`CELLRANGER_ARC/<label>/` and `CELLRANGER_AGGR/<label>/`.
+
+Everything published is a link into `work/`, so keep `work/` until you are
+done, or dereference when archiving (`cp -rL`, `rsync -L`, `tar -h`).
 
 ## Sample sheet
 
