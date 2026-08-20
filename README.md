@@ -56,20 +56,25 @@ nextflow run bixBeta/10x -r main --help
 nextflow run bixBeta/10x -r main --listRefs
 ```
 
-Results land in `CELLRANGER/<label>/outs`, or `CELLRANGER_ARC/<label>/` for
-multiome, plus `pipeline_info/`. Everything is published as symlinks into the
-work directory, so nothing is duplicated — keep `work/` until you are done.
-
-Two flat collections gather the per library summaries so a whole run can be
-skimmed without walking each folder:
+The run directory gathers the summaries so a whole run can be skimmed at a
+glance:
 
 ```
-web_summary_htmls/    JS4_web_summary.html  JS5_web_summary.html  ...
-summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv  ...
+web_summary_htmls/    JS4_web_summary.html     JS5_web_summary.html    ...
+summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv ...
+                      ALL_metrics_summary.csv
+pipeline_info/        software_versions.yml
 ```
 
-Multiome joins the same directories; its metrics file is `summary.csv`, so it
-lands as `<label>_summary.csv`.
+`ALL_metrics_summary.csv` is every per library table stacked, header kept once.
+Multiome joins the same directories, and since `cellranger-arc` reports
+different columns it gets its own `ALL_summary.csv`; `CELLRANGER_ARC/<label>/`
+also keeps the generated `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the
+aggregated result.
+
+The per library links are symlinks into `work/`, so nothing is duplicated —
+keep `work/` until you are done. **The full Cell Ranger `outs` is not
+published**; it lives in the task directory under `work/`.
 
 ## Sample sheet
 
