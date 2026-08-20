@@ -10,6 +10,7 @@ work/
 /CELLRANGER/
 /CELLRANGER_ARC/
 /CELLRANGER_AGGR/
+/filtered_counts/
 /web_summary_htmls/
 /summary_metrics/
 /pipeline_info/

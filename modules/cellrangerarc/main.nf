@@ -16,6 +16,7 @@ process CELLRANGER_ARC_COUNT {
     publishDir "CELLRANGER_ARC/${label}" , mode: "copy"   , overwrite: true , pattern: "*_libraries.csv"
 
     // flat collections across labels, for a quick look over a whole run
+    publishDir "filtered_counts/${label}" , mode: "symlink", overwrite: true , pattern: "filtered_feature_bc_matrix.h5"
     publishDir "web_summary_htmls"       , mode: "symlink", overwrite: true , pattern: "*_web_summary.html"
     publishDir "summary_metrics"         , mode: "symlink", overwrite: true , pattern: "*_summary.csv"
 
@@ -31,6 +32,7 @@ process CELLRANGER_ARC_COUNT {
         path "outs/*filtered_feature_bc_matrix.h5"              , emit: filtered_h5   , optional: true
         path "${label}_web_summary.html"                        , emit: run_web_summary , optional: true
         path "${label}_summary.csv"                             , emit: run_metrics     , optional: true
+        path "filtered_feature_bc_matrix.h5"                    , emit: filtered_link   , optional: true
         path "versions.yml"                                     , emit: versions
 
     script:
@@ -86,6 +88,9 @@ process CELLRANGER_ARC_COUNT {
     if [ -e outs/summary.csv ] ; then
         ln -s outs/summary.csv ${label}_summary.csv
     fi
+    if [ -e outs/filtered_feature_bc_matrix.h5 ] ; then
+        ln -s outs/filtered_feature_bc_matrix.h5 filtered_feature_bc_matrix.h5
+    fi
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -103,8 +108,11 @@ process CELLRANGER_ARC_COUNT {
     touch outs/web_summary.html
     touch outs/summary.csv
 
+    touch outs/filtered_feature_bc_matrix.h5
+
     ln -s outs/web_summary.html ${label}_web_summary.html
     ln -s outs/summary.csv      ${label}_summary.csv
+    ln -s outs/filtered_feature_bc_matrix.h5 filtered_feature_bc_matrix.h5
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

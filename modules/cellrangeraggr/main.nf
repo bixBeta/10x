@@ -14,6 +14,7 @@ process CELLRANGER_AGGR {
 
     publishDir "CELLRANGER_AGGR/${label}" , mode: "symlink", overwrite: true , pattern: "outs"
     publishDir "CELLRANGER_AGGR/${label}" , mode: "copy"   , overwrite: true , pattern: "*_aggr.csv"
+    publishDir "filtered_counts/${label}" , mode: "symlink", overwrite: true , pattern: "filtered_feature_bc_matrix.h5"
     publishDir "web_summary_htmls"        , mode: "symlink", overwrite: true , pattern: "*_aggr_web_summary.html"
 
     input:
@@ -23,6 +24,7 @@ process CELLRANGER_AGGR {
         tuple val(label), path("outs")                          , emit: outs
         path "${label}_aggr.csv"                                , emit: csv
         path "${label}_aggr_web_summary.html"                   , emit: run_web_summary , optional: true
+        path "filtered_feature_bc_matrix.h5"                    , emit: filtered_link   , optional: true
         path "versions.yml"                                     , emit: versions
 
     script:
@@ -61,6 +63,13 @@ process CELLRANGER_AGGR {
     if [ -e outs/web_summary.html ] ; then
         ln -s outs/web_summary.html ${label}_aggr_web_summary.html
     fi
+    # aggr keeps its matrix under outs/count/, older releases at the top
+    for cand in outs/filtered_feature_bc_matrix.h5 outs/count/filtered_feature_bc_matrix.h5 ; do
+        if [ -e "\$cand" ] ; then
+            ln -s "\$cand" filtered_feature_bc_matrix.h5
+            break
+        fi
+    done
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

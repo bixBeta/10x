@@ -30,6 +30,10 @@ process CELLRANGER_COUNT {
     // flat collections across libraries, for a quick look over a whole run.
     // The label prefixed names are made in the task dir rather than with
     // saveAs, so the pattern is a plain filename glob.
+    // one folder per library holding the filtered matrix under its usual name,
+    // so downstream Seurat can just loop over filtered_counts/*
+    publishDir "filtered_counts/${library}" , mode: "symlink", overwrite: true , pattern: "filtered_feature_bc_matrix.h5"
+
     publishDir "web_summary_htmls"      , mode: "symlink", overwrite: true , pattern: "*_web_summary.html"
     publishDir "summary_metrics"        , mode: "symlink", overwrite: true , pattern: "*_metrics_summary.csv"
 
@@ -45,6 +49,7 @@ process CELLRANGER_COUNT {
         path "outs/*.bam*"                                      , emit: bam           , optional: true
         path "${library}_web_summary.html"                      , emit: run_web_summary , optional: true
         path "${library}_metrics_summary.csv"                   , emit: run_metrics     , optional: true
+        path "filtered_feature_bc_matrix.h5"                    , emit: filtered_link   , optional: true
         tuple val(label), val(library), path("${library}_molecule_info.h5") , emit: molecule_info , optional: true
         path "versions.yml"                                     , emit: versions
 
@@ -101,6 +106,9 @@ process CELLRANGER_COUNT {
     if [ -e outs/metrics_summary.csv ] ; then
         ln -s outs/metrics_summary.csv ${library}_metrics_summary.csv
     fi
+    if [ -e outs/filtered_feature_bc_matrix.h5 ] ; then
+        ln -s outs/filtered_feature_bc_matrix.h5 filtered_feature_bc_matrix.h5
+    fi
     # uniquely named so several libraries can be staged side by side for aggr
     if [ -e outs/molecule_info.h5 ] ; then
         ln -s outs/molecule_info.h5 ${library}_molecule_info.h5
@@ -124,6 +132,7 @@ process CELLRANGER_COUNT {
     ln -s outs/web_summary.html    ${library}_web_summary.html
     ln -s outs/metrics_summary.csv ${library}_metrics_summary.csv
     ln -s outs/molecule_info.h5    ${library}_molecule_info.h5
+    ln -s outs/filtered_feature_bc_matrix.h5 filtered_feature_bc_matrix.h5
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -200,6 +200,14 @@ jobs:
           done
           test -e CELLRANGER/JS4/outs/molecule_info.h5 || { ls -l CELLRANGER/JS4/outs; echo "mirror is not the full outs"; exit 1; }
           echo "outs mirror OK: $(ls CELLRANGER/JS4/outs | tr '\n' ' ')"
+
+          # one folder per library holding the filtered matrix, for Seurat
+          for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
+            f="filtered_counts/$lib/filtered_feature_bc_matrix.h5"
+            test -L "$f" || { ls -lR filtered_counts | head -20; echo "no matrix link for $lib"; exit 1; }
+            test -e "$f" || { echo "matrix link for $lib does not resolve"; exit 1; }
+          done
+          echo "filtered_counts OK: $(ls filtered_counts | tr '\n' ' ')"
           # and they must be symlinks into the work dir, not copies
           readlink "web_summary_htmls/JS4_web_summary.html" | grep -q '/work/' || {
             echo "expected a symlink into work/"; exit 1; }
@@ -336,6 +344,7 @@ jobs:
           # and the csv is kept next to the results, beside the outs mirror
           test -f CELLRANGER_ARC/JS4/JS4_libraries.csv
           test -L CELLRANGER_ARC/JS4/outs
+          test -e filtered_counts/JS4/filtered_feature_bc_matrix.h5
 
           # arc joins the same flat collections; its metrics file is summary.csv
           test -L web_summary_htmls/JS4_web_summary.html || { ls -l web_summary_htmls; exit 1; }
@@ -428,7 +437,7 @@ jobs:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture-aggr
         run: |
           set -euo pipefail
-          rm -rf CELLRANGER CELLRANGER_AGGR "$CI_CAPTURE"
+          rm -rf CELLRANGER CELLRANGER_AGGR filtered_counts "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
             --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4
 
@@ -443,6 +452,9 @@ jobs:
           grep -qx -- '--normalize=mapped' "$CI_CAPTURE/JS6.aggr.command.txt"
           test -d CELLRANGER_AGGR/JS6
           test -L CELLRANGER_AGGR/JS6/outs
+          # the aggregated matrix lives under outs/count/ and still gets linked
+          test -e filtered_counts/JS6/filtered_feature_bc_matrix.h5 || {
+            ls -lR filtered_counts | head -20; echo "no aggregated matrix link"; exit 1; }
           test -f CELLRANGER_AGGR/JS6/JS6_aggr.csv
           test -L web_summary_htmls/JS6_aggr_web_summary.html
 
@@ -455,7 +467,7 @@ jobs:
           echo "aggr OK"
 
           # and it can be turned off
-          rm -rf CELLRANGER CELLRANGER_AGGR "$CI_CAPTURE"
+          rm -rf CELLRANGER CELLRANGER_AGGR filtered_counts "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
             --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --aggr false
           test ! -d CELLRANGER_AGGR || { echo "--aggr false still ran aggr"; exit 1; }
@@ -475,7 +487,7 @@ jobs:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture-yaml
         run: |
           set -euo pipefail
-          rm -rf CELLRANGER CELLRANGER_AGGR "$CI_CAPTURE"
+          rm -rf CELLRANGER CELLRANGER_AGGR filtered_counts "$CI_CAPTURE"
 
           # covers both kinds of param: sheet/ref/r1length are read in main.nf,
           # crversion/localcores/localmem are consumed while nextflow.config is
