@@ -12,15 +12,39 @@ process COMBINE_METRICS {
         path outname , emit: combined
 
     script:
-    // header from the first file, rows from all of them
+    // Header from the first file, rows from all of them, each prefixed with the
+    // library it came from. cellranger's own metrics_summary.csv carries no
+    // sample column, so without this the stacked rows cannot be told apart.
+    // The label is the file name minus the suffix, which is how the per library
+    // links were named.
     def files = csvs.collect { it.name }.sort().join(' ')
     """
-    awk '(NR == 1) || (FNR > 1)' ${files} > ${outname}
+    awk -F, '
+        FNR == 1 {
+            lab = FILENAME
+            sub(/.*\\//, "", lab)
+            sub(/_metrics_summary\\.csv\$/, "", lab)
+            sub(/_summary\\.csv\$/, "", lab)
+            if ( NR == 1 ) print "label," \$0
+            next
+        }
+        { print lab "," \$0 }
+    ' ${files} > ${outname}
     """
 
     stub:
     def files = csvs.collect { it.name }.sort().join(' ')
     """
-    awk '(NR == 1) || (FNR > 1)' ${files} > ${outname}
+    awk -F, '
+        FNR == 1 {
+            lab = FILENAME
+            sub(/.*\\//, "", lab)
+            sub(/_metrics_summary\\.csv\$/, "", lab)
+            sub(/_summary\\.csv\$/, "", lab)
+            if ( NR == 1 ) print "label," \$0
+            next
+        }
+        { print lab "," \$0 }
+    ' ${files} > ${outname}
     """
 }

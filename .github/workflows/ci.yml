@@ -263,6 +263,12 @@ jobs:
           test ! -L summary_metrics/ALL_metrics_summary.csv
           test "$(wc -l < summary_metrics/ALL_metrics_summary.csv)" -eq 5
           test "$(grep -c 'Estimated Number of Cells' summary_metrics/ALL_metrics_summary.csv)" -eq 1
+          # every row is attributable: a label column, one row per library
+          head -1 summary_metrics/ALL_metrics_summary.csv | grep -q '^label,'
+          for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
+            test "$(grep -c "^${lib}," summary_metrics/ALL_metrics_summary.csv)" -eq 1 \
+              || { cat summary_metrics/ALL_metrics_summary.csv; echo "no row for $lib"; exit 1; }
+          done
           echo "combined metrics OK"
 
           test -s pipeline_info/software_versions.yml
@@ -355,6 +361,8 @@ jobs:
           cat summary_metrics/ALL_summary.csv
           test "$(wc -l < summary_metrics/ALL_summary.csv)" -eq 2
           grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/ALL_summary.csv
+          head -1 summary_metrics/ALL_summary.csv | grep -q '^label,'
+          grep -q '^JS4,' summary_metrics/ALL_summary.csv
           echo "arc OK"
 
       - name: Ambiguous Project dir is rejected

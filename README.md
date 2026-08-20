@@ -61,13 +61,16 @@ glance:
 
 ```
 CELLRANGER/JS4/outs   -> work/../outs        the full cellranger output
+filtered_counts/JS4/  filtered_feature_bc_matrix.h5
 web_summary_htmls/    JS4_web_summary.html   JS5_web_summary.html    ...
 summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv ...
                       ALL_metrics_summary.csv
 pipeline_info/        software_versions.yml
 ```
 
-`ALL_metrics_summary.csv` is every per library table stacked, header kept once.
+`ALL_metrics_summary.csv` is every per library table stacked, header kept once,
+with a leading `label` column so each row can be traced back — Cell Ranger's
+own `metrics_summary.csv` carries no sample identifier.
 Multiome joins the same directories, and since `cellranger-arc` reports
 different columns it gets its own `ALL_summary.csv`; `CELLRANGER_ARC/<label>/`
 also keeps the generated `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the
