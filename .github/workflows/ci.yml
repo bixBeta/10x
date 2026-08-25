@@ -50,6 +50,19 @@ jobs:
           nextflow config . | grep -q 'maxForks' || { echo "maxForks missing"; exit 1; }
           nextflow config . | sed -n '/^process {/,/^}/p' | grep -E 'maxForks|maxRetries|errorStrategy'
 
+      # Non blocking: reports what the v2 strict parser makes of the pipeline,
+      # so the gap is visible before it becomes mandatory.
+      - name: Strict syntax (NXF_SYNTAX_PARSER=v2) report
+        continue-on-error: true
+        run: |
+          set +e
+          echo "=== nextflow config ==="
+          NXF_SYNTAX_PARSER=v2 nextflow config . 2>&1 | head -30
+          echo
+          echo "=== script parse ==="
+          NXF_SYNTAX_PARSER=v2 nextflow run . --help 2>&1 | head -60
+          exit 0
+
       - name: Help text
         run: nextflow run . --help
 
