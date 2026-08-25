@@ -56,11 +56,24 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          echo "=== nextflow config ==="
-          NXF_SYNTAX_PARSER=v2 nextflow config . 2>&1 | head -30
+
+          echo "############ config ############"
+          NXF_SYNTAX_PARSER=v2 nextflow config . > /tmp/v2cfg.txt 2>&1
+          echo "exit=$?"
+          grep -viE 'unrecognized config option' /tmp/v2cfg.txt | grep -iE 'error|warn' | head -20
+          echo "( $(grep -ciE 'unrecognized config option' /tmp/v2cfg.txt) unrecognized-option warnings )"
+
           echo
-          echo "=== script parse ==="
-          NXF_SYNTAX_PARSER=v2 nextflow run . --help 2>&1 | head -60
+          echo "############ script ############"
+          NXF_SYNTAX_PARSER=v2 nextflow run . --help > /tmp/v2run.txt 2>&1
+          echo "exit=$?"
+          grep -vE 'Unrecognized config option' /tmp/v2run.txt | grep -iE '^error|error:|cannot|not allowed|invalid|unexpected' | head -40
+
+          echo
+          echo "############ lint, if this build has it ############"
+          NXF_SYNTAX_PARSER=v2 nextflow lint . > /tmp/v2lint.txt 2>&1
+          echo "exit=$?"
+          head -40 /tmp/v2lint.txt
           exit 0
 
       - name: Help text
