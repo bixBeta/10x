@@ -295,7 +295,7 @@ Notes for the build host:
 | `--r2length` | — | `--r2-length` |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `128` | `--localmem` in GB **and** the memory reserved |
-| `--maxforks` | `2` | concurrent tasks **per process** |
+| `--maxforks` | `1` | concurrent tasks **per process** |
 | `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |

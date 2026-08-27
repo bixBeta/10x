@@ -46,10 +46,11 @@ checkversion:  true
 # ---- resources --------------------------------------------------------------
 # localcores / localmem are passed to cellranger AND reserved by nextflow, so
 # the allocation and what cellranger believes it has cannot drift apart.
-# maxforks is per process: 2 means two libraries at once, so twice the above.
+# maxforks is per process: 1 runs one library at a time, 2 would run two at
+# once and reserve twice the above.
 localcores:    32
 localmem:      128                    # GB
-maxforks:      2
+maxforks:      1
 
 # ---- cellranger count -------------------------------------------------------
 chemistry:     auto

@@ -186,8 +186,8 @@ Args:
   Runtime / resources:
     * --localcores     : cellranger --localcores, also the cpus reserved; default <32>
     * --localmem       : cellranger --localmem in GB, also the memory reserved; default <128>
-    * --maxforks       : concurrent tasks PER PROCESS, so 2 means up to 2 cellranger
-                         runs at once, each taking localcores / localmem; default <2>
+    * --maxforks       : concurrent tasks PER PROCESS, so 2 would run 2 cellranger
+                         jobs at once, each taking localcores / localmem; default <1>
 
   The command this builds, gex mode, one per library:
 
