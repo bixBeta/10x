@@ -83,8 +83,10 @@ if [ -n "$LIBRARIES" ] ; then
 
     mkdir -p "${ID}/outs"
     touch "${ID}/outs/web_summary.html"
-    printf 'Sample ID,Estimated number of cells,ATAC Median high-quality fragments per cell\n' >  "${ID}/outs/summary.csv"
-    printf '%s,1200,15000\n' "$ID"                                                            >> "${ID}/outs/summary.csv"
+    # shaped like a real cellranger-arc summary.csv: shared columns plus the
+    # ATAC and GEX prefixed ones, so the grouped MultiQC table is exercised
+    printf 'Sample ID,Genome,Pipeline version,Estimated number of cells,Feature linkages detected,Linked genes,Linked peaks,ATAC Confidently mapped read pairs,ATAC Fraction of genome in peaks,ATAC Median high-quality fragments per cell,ATAC TSS enrichment score,ATAC Sequenced read pairs,GEX Median genes per cell,GEX Median UMI counts per cell,GEX Mean raw reads per cell,GEX Q30 bases in barcode\n' > "${ID}/outs/summary.csv"
+    printf '%s,CanFam3_Ensembl101annot,2.2.0,"1,200",43006,6626,17837,0.8138,0.0404,15000,5.9448,939484231,2510,5488,36890.2592,0.9301\n' "$ID" >> "${ID}/outs/summary.csv"
     touch "${ID}/outs/filtered_feature_bc_matrix.h5"
     if [ -n "${CI_CAPTURE:-}" ] ; then
         mkdir -p "$CI_CAPTURE"
