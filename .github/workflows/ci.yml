@@ -132,14 +132,14 @@ jobs:
           echo '{}' > test/refparent/CanFam4/reference.json
           out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv \
                   --ref "$PWD/test/refparent" --crpath "$PWD/test/fake-cellranger" \
-                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+                  --localcores 2 --localmem 4 --multiqc false 2>&1) && { echo "expected failure"; exit 1; }
           echo "$out" | grep -q 'is not a reference itself, it holds 2' || { echo "$out" | tail -20; exit 1; }
           echo "$out" | grep -q 'CanFam3_1, CanFam4' || { echo "$out" | tail -20; exit 1; }
 
           # a missing reference is named too
           out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv \
                   --ref /no/such/ref --crpath "$PWD/test/fake-cellranger" \
-                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+                  --localcores 2 --localmem 4 --multiqc false 2>&1) && { echo "expected failure"; exit 1; }
           echo "$out" | grep -q 'No cellranger reference at' || { echo "$out" | tail -20; exit 1; }
           echo "reference checks OK"
 
@@ -147,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-                  --sifdir "$PWD/nosuchdir" 2>&1) && { echo "expected failure"; exit 1; }
+                  --sifdir "$PWD/nosuchdir" --multiqc false 2>&1) && { echo "expected failure"; exit 1; }
           echo "$out" | grep -q 'No cellranger image at' || { echo "$out" | tail -20; echo "wrong error"; exit 1; }
           echo "missing sif rejected"
 
@@ -168,7 +168,8 @@ jobs:
         run: |
           set -euo pipefail
           # no --crpath, and /programs/cellranger-9.0.1 does not exist here
-          out=$(nextflow run . -c test/ci.config --engine local --sheet test/sample-sheet.csv --ref test/ref 2>&1) && {
+          out=$(nextflow run . -c test/ci.config --engine local --sheet test/sample-sheet.csv --ref test/ref \
+                  --multiqc false 2>&1) && {
             echo "expected failure for a missing cellranger install"; exit 1; }
           echo "$out" | grep -q 'No cellranger found at' || { echo "$out" | tail -20; echo "wrong error"; exit 1; }
           echo "missing install rejected"
@@ -185,7 +186,8 @@ jobs:
           export FAKE_VERSION=8.0.1
           nextflow run . -c test/ci.config --engine local --sheet test/sample-sheet.csv --ref test/ref \
             --programs "$PWD/fakeprograms" --crversion 8.0.1 \
-            --localcores 2 --localmem 4
+            --localcores 2 --localmem 4 \
+              --multiqc false
           grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
           # cellranger 8 still takes --create-bam, not --no-bam
           grep -qx -- '--create-bam=false' "$CI_CAPTURE/JS4.command.txt"
@@ -455,14 +457,16 @@ jobs:
           # same binary, asked for what it actually is -> runs
           rm -rf CELLRANGER "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" --crversion 7.0.0 --localcores 2 --localmem 4
+            --crpath "$PWD/test/fake-cellranger" --crversion 7.0.0 --localcores 2 --localmem 4 \
+              --multiqc false
           grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
           echo "matching version accepted"
 
           # and the check can be switched off
           rm -rf CELLRANGER "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" --checkversion false --localcores 2 --localmem 4
+            --crpath "$PWD/test/fake-cellranger" --checkversion false --localcores 2 --localmem 4 \
+              --multiqc false
           grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
           echo "checkversion false honoured"
 
@@ -540,7 +544,8 @@ jobs:
           cat test/params.yaml
 
           export FAKE_VERSION=7.0.0
-          nextflow run . -c test/ci.config -params-file test/params.yaml
+          nextflow run . -c test/ci.config -params-file test/params.yaml \
+            --multiqc false
 
           grep -qx -- '--localcores=2'   "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- '--localmem=4'     "$CI_CAPTURE/JS4.command.txt"
