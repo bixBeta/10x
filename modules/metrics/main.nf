@@ -68,8 +68,7 @@ GROUPS = [
     }),
 ]
 SKIP = {"label"}
-# already reported in the Software Versions section, and a long column that
-# pushes the library table wider than the assay ones
+# already reported in the Software Versions section
 DROP = {"Pipeline version"}
 
 def number(value):
@@ -98,12 +97,11 @@ for suffix, title, prefix, visible in GROUPS:
                     continue
                 name = col[len(prefix):]
             cells[name] = number(value)
-            hide = bool(visible) and name not in visible
-            # Sample ID often repeats the label the row is keyed by; showing it
-            # twice only makes this table wider than the assay ones
-            if name == "Sample ID" and str(value) == str(sample):
-                hide = True
-            headers[name] = {"title": name, "description": col, "hidden": hide}
+            headers[name] = {
+                "title": name,
+                "description": col,
+                "hidden": bool(visible) and name not in visible,
+            }
         if cells:
             data[sample] = cells
 
