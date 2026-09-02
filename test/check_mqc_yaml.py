@@ -56,7 +56,6 @@ def main(paths):
                 print(f"{path}: columns without a header: {sorted(missing)[:3]}")
                 bad = True
                 continue
-            spaces = sorted({h.get("namespace", "") for h in headers.values()})
             hidden = [h for h in headers.values() if h.get("hidden")]
             shown = [h for h in headers.values() if not h.get("hidden")]
             # a wide table with nothing hidden is the unreadable one we are
@@ -66,8 +65,8 @@ def main(paths):
                 print(f"{path}: {len(shown)} visible / {len(hidden)} hidden of {len(headers)}")
                 bad = True
                 continue
-            print(f"{path}: valid table, {len(doc['data'])} rows, "
-                  f"namespaces {spaces}, {len(shown)} visible / {len(hidden)} hidden")
+            print(f"{path}: valid table '{doc['section_name']}', "
+                  f"{len(doc['data'])} rows, {len(shown)} visible / {len(hidden)} hidden")
 
         else:
             print(f"{path}: unexpected plot_type {kind}")
