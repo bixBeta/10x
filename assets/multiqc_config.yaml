@@ -23,7 +23,11 @@ report_section_order:
     order: 100
   cellranger_arc:
     order: 90
-  cellranger_arc_metrics:
+  cellranger_arc_metrics_library:
+    order: 82
+  cellranger_arc_metrics_atac:
+    order: 81
+  cellranger_arc_metrics_gex:
     order: 80
   pipeline_software_versions:
     order: -1000

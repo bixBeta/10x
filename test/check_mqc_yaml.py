@@ -59,10 +59,11 @@ def main(paths):
             spaces = sorted({h.get("namespace", "") for h in headers.values()})
             hidden = [h for h in headers.values() if h.get("hidden")]
             shown = [h for h in headers.values() if not h.get("hidden")]
-            if not hidden or not shown:
-                # all-visible is the wide unreadable table we are avoiding;
-                # all-hidden is an empty one
-                print(f"{path}: {len(shown)} visible / {len(hidden)} hidden columns")
+            # a wide table with nothing hidden is the unreadable one we are
+            # avoiding; a table with nothing shown is empty. A narrow table
+            # needs no hiding at all.
+            if not shown or (len(headers) > 12 and not hidden):
+                print(f"{path}: {len(shown)} visible / {len(hidden)} hidden of {len(headers)}")
                 bad = True
                 continue
             print(f"{path}: valid table, {len(doc['data'])} rows, "

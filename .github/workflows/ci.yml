@@ -641,19 +641,24 @@ jobs:
           # pipeline renders the metrics itself and stages them as custom content
           echo "--- custom content multiqc saw ---"
           cat "$CI_CAPTURE/multiqc.custom.txt"
-          grep -qx -- 'cellranger_arc_metrics_mqc.json' "$CI_CAPTURE/multiqc.custom.txt" \
-            || { echo "the arc metrics section did not reach multiqc"; exit 1; }
-          test -f summary_metrics/cellranger_arc_metrics_mqc.json
+          for part in library atac gex ; do
+            grep -qx -- "cellranger_arc_metrics_${part}_mqc.json" "$CI_CAPTURE/multiqc.custom.txt" \
+              || { cat "$CI_CAPTURE/multiqc.custom.txt"; echo "the arc $part section did not reach multiqc"; exit 1; }
+            test -f "summary_metrics/cellranger_arc_metrics_${part}_mqc.json"
+          done
 
           # parse, do not just grep: an unindented line silently ends a
           # "data: |" block scalar and MultiQC drops the whole section
           python3 -m pip install --quiet pyyaml
-          # the checker also fails a table that is all visible, i.e. the wide
-          # unreadable one, or all hidden
+          # the checker also fails a wide table that hides nothing, i.e. the
+          # unreadable one, or a table with nothing shown
           python3 test/check_mqc_yaml.py \
-            summary_metrics/cellranger_arc_metrics_mqc.json \
+            summary_metrics/cellranger_arc_metrics_*_mqc.json \
             pipeline_info/software_versions_mqc.yml | tee /tmp/mqccheck.txt
-          grep -q "namespaces \['ARC', 'ATAC', 'GEX'\]" /tmp/mqccheck.txt \
-            || { echo "arc columns are not grouped by assay"; exit 1; }
-          grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_mqc.json
+          grep -q "Cell Ranger ARC: ATAC" /tmp/mqccheck.txt || { echo "no ATAC section"; exit 1; }
+          grep -q "Cell Ranger ARC: GEX"  /tmp/mqccheck.txt || { echo "no GEX section";  exit 1; }
+          # the assay tables must not carry each other's columns
+          grep -q 'GEX' summary_metrics/cellranger_arc_metrics_atac_mqc.json \
+            && { echo "GEX columns leaked into the ATAC table"; exit 1; } || true
+          grep -q 'Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_atac_mqc.json
           echo "arc multiqc OK"
