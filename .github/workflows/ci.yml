@@ -645,21 +645,11 @@ jobs:
             || { echo "the arc metrics section did not reach multiqc"; exit 1; }
           test -f summary_metrics/cellranger_arc_metrics_mqc.yml
 
-          # PARSE it, do not just grep: an unindented line silently ends a
-          # "data: |" block scalar, and MultiQC then drops the whole section
+          # parse, do not just grep: an unindented line silently ends a
+          # "data: |" block scalar and MultiQC drops the whole section
           python3 -m pip install --quiet pyyaml
-          python3 - <<'PYEOF'
-import yaml
-for f in ("summary_metrics/cellranger_arc_metrics_mqc.yml",
-          "pipeline_info/software_versions_mqc.yml"):
-    with open(f) as fh:
-        d = yaml.safe_load(fh)
-    assert isinstance(d, dict), f"{f}: not a mapping"
-    for key in ("id", "section_name", "plot_type", "data"):
-        assert key in d, f"{f}: missing {key}"
-    assert d["plot_type"] == "html", f"{f}: unexpected plot_type"
-    assert "<table" in d["data"] and "</table>" in d["data"], f"{f}: no table in data"
-    print(f"{f}: valid, {d['data'].count('<tr>')} rows")
-PYEOF
+          python3 test/check_mqc_yaml.py \
+            summary_metrics/cellranger_arc_metrics_mqc.yml \
+            pipeline_info/software_versions_mqc.yml
           grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_mqc.yml
           echo "arc multiqc OK"
