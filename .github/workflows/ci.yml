@@ -614,3 +614,26 @@ jobs:
                   --localcores 2 --localmem 4 2>&1) && { echo "expected a version mismatch"; exit 1; }
           echo "$out" | grep -q 'asked for multiqc 1.35 but' || { echo "$out" | tail -25; exit 1; }
           echo "multiqc version guard OK"
+
+      - name: MultiQC covers the arc path too
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-mqcarc
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_ARC multiqc web_summary_htmls "$CI_CAPTURE"
+          export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
+
+          nextflow run . -c test/ci.config --mode arc \
+            --sheet test/sample-sheet-arc.csv --ref "$PWD/test/ref" \
+            --arcpath "$PWD/test/fake-cellranger" \
+            --multiqcpath "$PWD/test/fake-multiqc" \
+            --id BRC_ARC --localcores 2 --localmem 4
+
+          # the multiome summary reaches multiqc, and the versions section with it
+          grep -qx -- 'JS4_web_summary.html' "$CI_CAPTURE/multiqc.inputs.txt" \
+            || { cat "$CI_CAPTURE/multiqc.inputs.txt"; echo "arc summary missed"; exit 1; }
+          grep -q 'cellranger-arc' "$CI_CAPTURE/multiqc.versions.yml" \
+            || { cat "$CI_CAPTURE/multiqc.versions.yml"; echo "arc version missing from the table"; exit 1; }
+
+          test -f multiqc/BRC_ARC_multiqc_report.html || { ls -lR multiqc; exit 1; }
+          echo "arc multiqc OK"
