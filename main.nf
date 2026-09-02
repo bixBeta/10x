@@ -28,6 +28,8 @@ params.r2length         = null
 
 ch_pin          =    channel.value(params.id)
 ch_sheet        =    channel.fromPath(params.sheet)
+ch_mqc_config   =    channel.value( file( params.multiqcconfig ?: "${projectDir}/assets/multiqc_config.yaml",
+                                          checkIfExists: true ) )
 
 
 // ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~  ~ ~ ~ ~ ~ ~
@@ -147,6 +149,13 @@ Args:
     * --introns        : Set true/false to override --include-introns; default <null> ( tool default )
     * --r1length       : Trim R1 to this length; default <28>. Pass 0 to omit the flag.
     * --r2length       : Trim R2 to this length; default <null>
+    * --multiqc        : Aggregate the web summaries into one MultiQC report; default <true>
+                         MultiQC reads cellranger / cellranger-arc web_summary.html,
+                         so the report covers whatever was counted this run.
+    * --multiqcversion : MultiQC version, selects the image; default <1.35>
+    * --multiqcsif     : Full path to a specific multiqc image
+    * --multiqcpath    : Run a multiqc binary instead of an image ( default: multiqc on PATH )
+    * --multiqcconfig  : Custom multiqc config yaml
     * --aggr           : Run cellranger aggr for labels that carry several libraries
                          ( separate GEM wells ); default <true>. A label with one
                          library is left alone: re-sequencing runs were already
@@ -252,6 +261,9 @@ def checkEngine(engine, bin, image, what) {
     Build one with containers/build-sif.sh, point at another dir with --sifdir,
     or run the local install instead with --engine local."""
     }
+
+    // a bare name is resolved on PATH, not a path we can check
+    if( !bin.contains('/') ) return
 
     if( file(bin).exists() ) return
 
@@ -388,6 +400,7 @@ include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
 include {   COMBINE_METRICS          } from './modules/metrics'
+include {   MULTIQC                  } from './modules/multiqc'
 include {   DUMP_VERSIONS            } from './modules/versions'
 
 
@@ -627,7 +640,23 @@ workflow GEX {
         ch_versions = ch_versions.mix( CELLRANGER_AGGR.out.versions.first() )
     }
 
+    // DUMP_VERSIONS first: it writes the Software Versions section MultiQC
+    // renders, so the table is an input to the report rather than an output of
+    // it. MultiQC's own version is therefore not in the table - it cannot be,
+    // since the table has to exist before multiqc runs.
     DUMP_VERSIONS(ch_versions.collect())
+
+    // MultiQC reads the web summaries, the aggregated one included
+    if( params.multiqc ) {
+
+        checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
+
+        mqc_ch = params.aggr
+            ? CELLRANGER_COUNT.out.run_web_summary.mix( CELLRANGER_AGGR.out.run_web_summary )
+            : CELLRANGER_COUNT.out.run_web_summary
+
+        MULTIQC( mqc_ch.collect(), ch_mqc_config, DUMP_VERSIONS.out.mqc_yml )
+    }
 }
 
 
@@ -686,6 +715,13 @@ workflow ARC {
     )
 
     DUMP_VERSIONS( CELLRANGER_ARC_COUNT.out.versions.first().collect() )
+
+    if( params.multiqc ) {
+
+        checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
+
+        MULTIQC( CELLRANGER_ARC_COUNT.out.run_web_summary.collect(), ch_mqc_config, DUMP_VERSIONS.out.mqc_yml )
+    }
 }
 
 

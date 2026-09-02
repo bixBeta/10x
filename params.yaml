@@ -57,6 +57,14 @@ chemistry:     auto
 createBam:     false
 r1length:      28                     # set to 0 to omit --r1-length
 
+# ---- multiqc ----------------------------------------------------------------
+# One report over the run, built from the cellranger / cellranger-arc web
+# summaries. Needs <sifdir>/multiqc-<multiqcversion>.sif, or set multiqcpath to
+# a binary. Build the image with:
+#   bash containers/build-sif.sh multiqc 1.35 docker://multiqc/multiqc:v1.35 <sifdir>
+multiqc:       true
+multiqcversion: 1.35
+
 # ---- aggregation ------------------------------------------------------------
 # Runs for labels carrying several libraries, i.e. separate GEM wells. A label
 # with one library is left alone; its re-sequencing runs were already pooled.

@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Stand-in for multiqc, used by CI via --multiqcpath.
+#
+# It records its argv and the inputs it could see, and enforces the contract
+# that matters here: the web summaries actually reached the task dir. Without
+# that check a report could be generated over nothing at all.
+
+set -euo pipefail
+
+if [ "${1:-}" = "--version" ] ; then
+    echo "multiqc, version ${FAKE_MQC_VERSION:-1.35}"
+    exit 0
+fi
+
+FILENAME="" ; TITLE=""
+prev=""
+for a in "$@" ; do
+    case "$prev" in
+        --filename) FILENAME="$a" ;;
+        --title)    TITLE="$a"    ;;
+    esac
+    prev="$a"
+done
+
+[ -n "$FILENAME" ] || { echo "fake-multiqc: no --filename given" >&2 ; exit 1 ; }
+
+n=$( ls -1 *_web_summary.html 2>/dev/null | wc -l | tr -d ' ' )
+if [ "$n" -eq 0 ] ; then
+    echo "fake-multiqc: no *_web_summary.html staged, nothing to report on" >&2
+    ls -la >&2
+    exit 1
+fi
+
+touch "$FILENAME"
+mkdir -p "${FILENAME%.html}_data"
+ls -1 *_web_summary.html > "${FILENAME%.html}_data/inputs.txt"
+
+# the Software Versions section is supplied by the pipeline as custom content
+[ -f software_versions_mqc.yml ] || {
+    echo "fake-multiqc: software_versions_mqc.yml was not staged" >&2 ; ls -la >&2 ; exit 1 ; }
+
+if [ -n "${CI_CAPTURE:-}" ] ; then
+    mkdir -p "$CI_CAPTURE"
+    printf '%s\n' "$@"                > "$CI_CAPTURE/multiqc.command.txt"
+    ls -1 *_web_summary.html          > "$CI_CAPTURE/multiqc.inputs.txt"
+    cp software_versions_mqc.yml        "$CI_CAPTURE/multiqc.versions.yml"
+    cp *multiqc_config*.yaml            "$CI_CAPTURE/multiqc.config.yaml" 2>/dev/null || true
+fi

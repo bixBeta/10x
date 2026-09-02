@@ -1,0 +1,23 @@
+# House MultiQC config for the 10x pipeline.
+# Override with --multiqcconfig to use your own instead.
+
+data_format: 'yaml'
+show_analysis_time: False
+show_analysis_paths: False
+theme_style: light
+plots_force_interactive: True
+
+# MultiQC's own version detection is off. The pipeline supplies its own
+# Software Versions section from the versions.yml every process emits, so the
+# table reports what the tools actually said rather than what MultiQC infers
+# from filenames.
+disable_version_detection: True
+
+# Cell Ranger first, our versions table pinned to the very end.
+report_section_order:
+  cellranger:
+    order: 100
+  cellranger_arc:
+    order: 90
+  pipeline_software_versions:
+    order: -1000

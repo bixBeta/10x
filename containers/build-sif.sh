@@ -12,6 +12,7 @@
 #
 #  or an existing image, which is just converted:
 #    ./containers/build-sif.sh cellranger 9.0.1 docker://<registry>/cellranger:9.0.1 /local/workdir/singularity
+#    ./containers/build-sif.sh multiqc 1.35 docker://multiqc/multiqc:v1.35 /local/workdir/singularity
 #
 #  Produces <outdir>/<tool>-<version>.sif, which is exactly what the pipeline
 #  looks for, i.e. sifdir + crversion / arcversion in params.yaml
@@ -48,8 +49,8 @@ if [ -z "$TOOL" ] || [ -z "$VERSION" ] || [ -z "$SOURCE" ] ; then
 fi
 
 case "$TOOL" in
-    cellranger|cellranger-arc|cellranger-atac) : ;;
-    *) echo "unknown tool '$TOOL' (expected cellranger, cellranger-arc or cellranger-atac)" >&2 ; exit 1 ;;
+    cellranger|cellranger-arc|cellranger-atac|multiqc) : ;;
+    *) echo "unknown tool '$TOOL' (expected cellranger, cellranger-arc, cellranger-atac or multiqc)" >&2 ; exit 1 ;;
 esac
 
 # resolved only once the inputs are known good, so a bad tarball reports itself
@@ -190,9 +191,10 @@ echo "built: ${SIF}"
 "$RUNNER" exec "$SIF" "$TOOL" --version || true
 echo
 case "$TOOL" in
-    cellranger)      VERFLAG="--crversion"   ;;
-    cellranger-arc)  VERFLAG="--arcversion"  ;;
-    *)               VERFLAG="--crversion"   ;;
+    cellranger)      VERFLAG="--crversion"      ;;
+    cellranger-arc)  VERFLAG="--arcversion"     ;;
+    multiqc)         VERFLAG="--multiqcversion" ;;
+    *)               VERFLAG="--crversion"      ;;
 esac
 echo "use it with, in params.yaml:"
 echo "  sifdir:     ${OUTDIR}"

@@ -255,7 +255,7 @@ jobs:
           nextflow run . -c test/ci.config \
             --sheet test/sample-sheet.csv \
             --ref   "$PWD/test/ref" \
-            --crpath "$PWD/test/fake-cellranger" \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false \
             --localcores 2 --localmem 4
 
           echo "--- command built for JS5 (two sequencing runs) ---"
@@ -316,7 +316,7 @@ jobs:
           set -euo pipefail
           rm -rf CELLRANGER "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --r1length 0
+            --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4 --r1length 0
           if grep -q -- '--r1-length' "$CI_CAPTURE/JS4.command.txt" ; then
             echo "expected no --r1-length"; exit 1
           fi
@@ -333,7 +333,7 @@ jobs:
           FQ=$(ls "$PWD"/test/Illumina/run1/Unaligned/Project_10488923/Sample_SC2620_JS4_*/*_R1_001.fastq.gz | head -1)
           printf 'label,fastqs\nJS4,%s\n' "$FQ" > test/sheet-file.csv
           nextflow run . -c test/ci.config --sheet test/sheet-file.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4
+            --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4
           # the file resolved to its parent dir, and the prefix came off the name
           grep -qx -- "--fastqs=$(dirname "$FQ")" "$CI_CAPTURE/JS4.command.txt"
           grep -qx -- '--sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4' "$CI_CAPTURE/JS4.command.txt"
@@ -349,7 +349,7 @@ jobs:
           nextflow run . -c test/ci.config --mode arc \
             --sheet test/sample-sheet-arc.csv \
             --ref   "$PWD/test/ref" \
-            --arcpath "$PWD/test/fake-cellranger" \
+            --arcpath "$PWD/test/fake-cellranger" --multiqc false \
             --localcores 2 --localmem 4
 
           echo "--- JS4_libraries.csv ---"
@@ -395,7 +395,7 @@ jobs:
         run: |
           set -euo pipefail
           if nextflow run . -c test/ci.config --sheet test/sample-sheet-ambiguous.csv --ref test/ref \
-               --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 ; then
+               --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4 ; then
             echo "expected failure: two prefixes under one path with no sample column"; exit 1
           fi
           echo "ambiguity rejected"
@@ -404,7 +404,7 @@ jobs:
         run: |
           set -euo pipefail
           if nextflow run . -c test/ci.config --sheet test/sample-sheet-arc.csv --ref test/ref \
-               --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 ; then
+               --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4 ; then
             echo "expected failure: Chromatin Accessibility in gex mode"; exit 1
           fi
           echo "wrong library_type rejected"
@@ -423,7 +423,7 @@ jobs:
 
           nextflow run . -c test/native.config \
             --sheet test/sample-sheet.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false \
             --localcores 2 --localmem 4
           grep -qx -- '--id=JS4' "$CI_CAPTURE/JS4.command.txt"
           echo "native gex OK"
@@ -432,7 +432,7 @@ jobs:
           export FAKE_TOOL=cellranger-arc FAKE_VERSION=2.2.0
           nextflow run . -c test/native.config --mode arc \
             --sheet test/sample-sheet-arc.csv --ref "$PWD/test/ref" \
-            --arcpath "$PWD/test/fake-cellranger" \
+            --arcpath "$PWD/test/fake-cellranger" --multiqc false \
             --localcores 2 --localmem 4
           grep -qx -- '--libraries=JS4_libraries.csv' "$CI_CAPTURE/JS4.command.txt"
           echo "native arc OK"
@@ -447,7 +447,7 @@ jobs:
           # the binary reports 7.0.0 while the run asks for 9.0.1
           export FAKE_VERSION=7.0.0
           out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-                  --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 2>&1) && {
+                  --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4 2>&1) && {
             echo "expected a version mismatch failure"; exit 1; }
           echo "$out" | grep -q 'asked for cellranger 9.0.1 but' || { echo "$out" | tail -25; echo "wrong error"; exit 1; }
           echo "version mismatch rejected"
@@ -473,7 +473,7 @@ jobs:
           set -euo pipefail
           rm -rf CELLRANGER CELLRANGER_AGGR filtered_counts "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4
+            --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4
 
           echo "--- JS6_aggr.csv ---"
           cat "$CI_CAPTURE/JS6.aggr.csv"
@@ -503,7 +503,7 @@ jobs:
           # and it can be turned off
           rm -rf CELLRANGER CELLRANGER_AGGR filtered_counts "$CI_CAPTURE"
           nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
-            --crpath "$PWD/test/fake-cellranger" --localcores 2 --localmem 4 --aggr false
+            --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4 --aggr false
           test ! -d CELLRANGER_AGGR || { echo "--aggr false still ran aggr"; exit 1; }
           echo "aggr false honoured"
 
@@ -547,3 +547,65 @@ jobs:
           grep -qx -- '--r1-length=26'   "$CI_CAPTURE/JS4.command.txt"
           test ! -d CELLRANGER_AGGR || { echo "aggr: false from yaml was ignored"; exit 1; }
           echo "params-file OK"
+
+      - name: MultiQC aggregates the web summaries
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-mqc
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER CELLRANGER_AGGR multiqc web_summary_htmls "$CI_CAPTURE"
+
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" \
+            --multiqcpath "$PWD/test/fake-multiqc" \
+            --id BRC_CI --localcores 2 --localmem 4
+
+          echo "--- multiqc saw ---"
+          cat "$CI_CAPTURE/multiqc.inputs.txt"
+
+          # every library plus the aggregated report reach multiqc: these are
+          # web_summary.html files, which is what multiqc's cellranger module
+          # actually searches for
+          for lib in JS4 JS5 JS6_wellA JS6_wellB ; do
+            grep -qx -- "${lib}_web_summary.html" "$CI_CAPTURE/multiqc.inputs.txt" \
+              || { cat "$CI_CAPTURE/multiqc.inputs.txt"; echo "multiqc missed $lib"; exit 1; }
+          done
+          grep -qx -- 'JS6_aggr_web_summary.html' "$CI_CAPTURE/multiqc.inputs.txt" \
+            || { echo "the aggregated summary did not reach multiqc"; exit 1; }
+
+          # the report is published as a real file, named after the project
+          test -f multiqc/BRC_CI_multiqc_report.html || { ls -lR multiqc; exit 1; }
+          test ! -L multiqc/BRC_CI_multiqc_report.html
+          test -d multiqc/BRC_CI_multiqc_report_data
+          grep -qx -- '--title' "$CI_CAPTURE/multiqc.command.txt"
+          grep -qx -- '--config' "$CI_CAPTURE/multiqc.command.txt"
+
+          # the Software Versions section is ours, not MultiQC's own detection
+          echo "--- software_versions_mqc.yml ---"
+          cat "$CI_CAPTURE/multiqc.versions.yml"
+          grep -q '^id: pipeline_software_versions' "$CI_CAPTURE/multiqc.versions.yml"
+          grep -q '^section_name: Software Versions' "$CI_CAPTURE/multiqc.versions.yml"
+          grep -q 'cellranger' "$CI_CAPTURE/multiqc.versions.yml"
+          # and the shipped config switches MultiQC's own off and pins ours last
+          grep -qi 'disable_version_detection' assets/multiqc_config.yaml
+          grep -A1 'pipeline_software_versions' assets/multiqc_config.yaml | grep -q 'order: -1000'
+          test -f pipeline_info/software_versions_mqc.yml
+          echo "multiqc OK"
+
+          # and it can be switched off
+          rm -rf CELLRANGER multiqc "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false --localcores 2 --localmem 4
+          test ! -d multiqc || { echo "--multiqc false still ran it"; exit 1; }
+          echo "multiqc false honoured"
+
+      - name: MultiQC version guard
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER multiqc
+          export FAKE_MQC_VERSION=1.20
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet.csv --ref test/ref \
+                  --crpath "$PWD/test/fake-cellranger" --multiqcpath "$PWD/test/fake-multiqc" \
+                  --localcores 2 --localmem 4 2>&1) && { echo "expected a version mismatch"; exit 1; }
+          echo "$out" | grep -q 'asked for multiqc 1.35 but' || { echo "$out" | tail -25; exit 1; }
+          echo "multiqc version guard OK"
