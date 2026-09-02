@@ -47,20 +47,22 @@ with open(table, newline="") as fh:
 
 if rows:
     head, body = rows[0], rows[1:]
-    out = ['  <table class="table table-condensed">', "  <thead><tr>"]
-    out += [f"<th>{html.escape(c)}</th>" for c in head]
-    out += ["</tr></thead>", "  <tbody>"]
+    cells = "".join(f"<th>{html.escape(c)}</th>" for c in head)
+    parts = ['<table class="table table-condensed">', f"<thead><tr>{cells}</tr></thead>", "<tbody>"]
     for r in body:
-        out.append("  <tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in r) + "</tr>")
-    out += ["  </tbody></table>"]
+        parts.append("<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in r) + "</tr>")
+    parts.append("</tbody></table>")
 
+    # ONE line, indented: every line of a "data: |" block scalar has to be
+    # indented past the key, and an unindented line silently ends the block and
+    # makes the file invalid YAML.
     with open(f"{section}_mqc.yml", "w") as fh:
         fh.write(f"id: {section}\\n")
         fh.write("section_name: Cell Ranger ARC metrics\\n")
         fh.write("description: Read from each summary.csv, since MultiQC cannot parse cellranger-arc 2.2 web summaries (MultiQC issue 3609).\\n")
         fh.write("plot_type: html\\n")
         fh.write("data: |\\n")
-        fh.write("\\n".join(out) + "\\n")
+        fh.write("  " + "".join(parts) + "\\n")
 PYEOF
         else
             echo "WARN: no python3, skipping the ${section} MultiQC section" >&2
