@@ -10,7 +10,7 @@ process COMBINE_METRICS {
 
     output:
         path outname          , emit: combined
-        path "*_mqc.yml"      , emit: mqc      , optional: true
+        path "*_mqc.json"     , emit: mqc      , optional: true
 
     script:
     // Header from the first file, rows from all of them, each prefixed with the
@@ -39,30 +39,77 @@ process COMBINE_METRICS {
     if [ -n "${section}" ] ; then
         if command -v python3 > /dev/null 2>&1 ; then
             python3 - "${outname}" "${section}" <<'PYEOF'
-import csv, html, sys
+import csv, json, sys
 
 table, section = sys.argv[1], sys.argv[2]
 with open(table, newline="") as fh:
-    rows = list(csv.reader(fh))
+    rows = list(csv.DictReader(fh))
 
-if rows:
-    head, body = rows[0], rows[1:]
-    cells = "".join(f"<th>{html.escape(c)}</th>" for c in head)
-    parts = ['<table class="table table-condensed">', f"<thead><tr>{cells}</tr></thead>", "<tbody>"]
-    for r in body:
-        parts.append("<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in r) + "</tr>")
-    parts.append("</tbody></table>")
+# Cell Ranger ARC prefixes its columns by assay, so the prefix is the grouping.
+# A handful of headline metrics stay visible; the rest are one click away under
+# "Configure columns" rather than 30 columns wide by default.
+VISIBLE = {
+    "Estimated number of cells",
+    "ATAC Median high-quality fragments per cell",
+    "ATAC TSS enrichment score",
+    "ATAC Fraction of high-quality fragments in cells",
+    "ATAC Fraction of transposition events in peaks in cells",
+    "GEX Median genes per cell",
+    "GEX Median UMI counts per cell",
+    "GEX Mean raw reads per cell",
+    "GEX Fraction of transcriptomic reads in cells",
+}
+SKIP = {"label", "Sample ID"}
 
-    # ONE line, indented: every line of a "data: |" block scalar has to be
-    # indented past the key, and an unindented line silently ends the block and
-    # makes the file invalid YAML.
-    with open(f"{section}_mqc.yml", "w") as fh:
-        fh.write(f"id: {section}\\n")
-        fh.write("section_name: Cell Ranger ARC metrics\\n")
-        fh.write("description: Read from each summary.csv, since MultiQC cannot parse cellranger-arc 2.2 web summaries (MultiQC issue 3609).\\n")
-        fh.write("plot_type: html\\n")
-        fh.write("data: |\\n")
-        fh.write("  " + "".join(parts) + "\\n")
+def number(value):
+    try:
+        return int(value.replace(",", ""))
+    except (ValueError, AttributeError):
+        pass
+    try:
+        return float(value.replace(",", ""))
+    except (ValueError, AttributeError):
+        return value
+
+data, headers = {}, {}
+for row in rows:
+    sample = row.get("label") or row.get("Sample ID") or "sample"
+    data[sample] = {}
+    for col, value in row.items():
+        if col in SKIP or col is None:
+            continue
+        if col.startswith("ATAC "):
+            namespace, title = "ATAC", col[5:]
+        elif col.startswith("GEX "):
+            namespace, title = "GEX", col[4:]
+        else:
+            namespace, title = "ARC", col
+        data[sample][col] = number(value)
+        headers[col] = {
+            "title": title,
+            "namespace": namespace,
+            "description": col,
+            "hidden": col not in VISIBLE,
+        }
+
+doc = {
+    "id": section,
+    "section_name": "Cell Ranger ARC metrics",
+    "description": (
+        "From each summary.csv. Columns are grouped by assay; use Configure "
+        "columns for the rest. MultiQC cannot parse cellranger-arc 2.2 web "
+        "summaries itself (MultiQC issue 3609)."
+    ),
+    "plot_type": "table",
+    "pconfig": {"id": section + "_table", "namespace": "Cell Ranger ARC", "col1_header": "Library"},
+    "headers": headers,
+    "data": data,
+}
+
+# JSON, which MultiQC reads as *_mqc.json custom content. It is also valid
+# YAML, and it removes the indentation traps of hand written block scalars.
+with open(section + "_mqc.json", "w") as fh:
+    json.dump(doc, fh, indent=1)
 PYEOF
         else
             echo "WARN: no python3, skipping the ${section} MultiQC section" >&2

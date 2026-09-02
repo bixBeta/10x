@@ -641,15 +641,19 @@ jobs:
           # pipeline renders the metrics itself and stages them as custom content
           echo "--- custom content multiqc saw ---"
           cat "$CI_CAPTURE/multiqc.custom.txt"
-          grep -qx -- 'cellranger_arc_metrics_mqc.yml' "$CI_CAPTURE/multiqc.custom.txt" \
+          grep -qx -- 'cellranger_arc_metrics_mqc.json' "$CI_CAPTURE/multiqc.custom.txt" \
             || { echo "the arc metrics section did not reach multiqc"; exit 1; }
-          test -f summary_metrics/cellranger_arc_metrics_mqc.yml
+          test -f summary_metrics/cellranger_arc_metrics_mqc.json
 
           # parse, do not just grep: an unindented line silently ends a
           # "data: |" block scalar and MultiQC drops the whole section
           python3 -m pip install --quiet pyyaml
+          # the checker also fails a table that is all visible, i.e. the wide
+          # unreadable one, or all hidden
           python3 test/check_mqc_yaml.py \
-            summary_metrics/cellranger_arc_metrics_mqc.yml \
-            pipeline_info/software_versions_mqc.yml
-          grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_mqc.yml
+            summary_metrics/cellranger_arc_metrics_mqc.json \
+            pipeline_info/software_versions_mqc.yml | tee /tmp/mqccheck.txt
+          grep -q "namespaces \['ARC', 'ATAC', 'GEX'\]" /tmp/mqccheck.txt \
+            || { echo "arc columns are not grouped by assay"; exit 1; }
+          grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_mqc.json
           echo "arc multiqc OK"
