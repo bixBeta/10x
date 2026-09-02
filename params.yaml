@@ -29,6 +29,7 @@ ref:           Canine
 #   cellranger        9.0.1     cellranger-9.0.1.sif
 #                     10.1.0    cellranger-10.1.0.sif
 #   cellranger-arc    2.2.0     cellranger-arc-2.2.0.sif
+#   multiqc           1.35      multiqc-1.35.sif
 #
 # Swap by changing the version below - nothing else needs to change. Anything
 # not listed has to be built first:

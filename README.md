@@ -6,6 +6,7 @@
 [![cellranger 10.1.0](https://img.shields.io/badge/cellranger-10.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger 9.0.1](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger-arc 2.2.0](https://img.shields.io/badge/cellranger--arc-2.2.0-6f42c1.svg)](https://www.10xgenomics.com/support/software/cell-ranger-arc)
+[![multiqc 1.35](https://img.shields.io/badge/multiqc-1.35-1a9e77.svg)](https://multiqc.info/)
 
 <hr>
 
@@ -14,6 +15,7 @@
 | `gex` | `cellranger count` | working |
 | `arc` | `cellranger-arc count` | working |
 | — | `cellranger aggr` | working, for multi-library labels |
+| — | `multiqc` | working, one report per run |
 | `atac` | `cellranger-atac count` | planned |
 
 Requires Nextflow >= 24.04, tested against 25.04.1.
@@ -65,6 +67,7 @@ filtered_counts/JS4/  filtered_feature_bc_matrix.h5
 web_summary_htmls/    JS4_web_summary.html   JS5_web_summary.html    ...
 summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv ...
                       ALL_metrics_summary.csv
+multiqc/              BRC_1234_multiqc_report.html
 pipeline_info/        software_versions.yml
 ```
 
@@ -75,6 +78,24 @@ Multiome joins the same directories, and since `cellranger-arc` reports
 different columns it gets its own `ALL_summary.csv`; `CELLRANGER_ARC/<label>/`
 also keeps the generated `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the
 aggregated result.
+
+### MultiQC
+
+One report per run, in `multiqc/<id>_multiqc_report.html`. MultiQC's
+`cellranger` and `cellranger_arc` modules find runs by matching content inside
+`web_summary.html`, so the summaries the pipeline already collects are the whole
+input — `metrics_summary.csv` is not one of its search patterns.
+
+The **Software Versions** table at the end of the report is the pipeline's own,
+not MultiQC's. `disable_version_detection` is set in
+[`assets/multiqc_config.yaml`](assets/multiqc_config.yaml), and `DUMP_VERSIONS`
+writes `software_versions_mqc.yml` from the `versions.yml` every process emits,
+so the table reports what the tools themselves said. `report_section_order`
+pins it last. MultiQC's own version is not in that table — it cannot be, since
+the table is an input to the report.
+
+`--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
+`--multiqcversion` selects the image.
 
 `CELLRANGER/<label>/outs` is a single symlink to the task's real `outs`, so
 everything Cell Ranger wrote — matrices, `molecule_info.h5`, `analysis/`, the
@@ -300,6 +321,10 @@ Notes for the build host:
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
 | `--crversion` / `--arcversion` | `9.0.1` / `2.2.0` | selects the image or install |
+| `--multiqc` | `true` | build the MultiQC report |
+| `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
+| `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
+| `--multiqcconfig` | shipped | a custom MultiQC config |
 | `--sifdir` | see above | where the `.sif` files live |
 | `--crsif` / `--arcsif` | — | a specific image |
 | `--programs` | `/programs` | where native installs live |
