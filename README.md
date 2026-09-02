@@ -96,10 +96,13 @@ the table is an input to the report.
 
 For multiome, MultiQC's own `cellranger_arc` module cannot parse Cell Ranger
 ARC 2.2 web summaries ([MultiQC #3609](https://github.com/MultiQC/MultiQC/issues/3609),
-open), so the pipeline renders the metrics itself from `summary.csv` as a
-grouped table — columns namespaced `ARC`, `ATAC` and `GEX`, with the headline
-metrics visible and the long tail behind *Configure columns*. The module is
-left enabled so its richer section returns the day upstream fixes it.
+open), so the pipeline renders the metrics itself from `summary.csv` as three
+sections — **library**, **ATAC** and **GEX** — with the headline metrics visible
+and the long tail behind *Configure columns*. Splitting by assay rather than
+using MultiQC's column `namespace` is deliberate: a namespace only shows in
+tooltips, which left ATAC and GEX columns of the same name indistinguishable.
+The module is left enabled so its richer section returns the day upstream
+fixes it.
 
 `--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
 `--multiqcversion` selects the image.

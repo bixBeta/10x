@@ -661,4 +661,6 @@ jobs:
           grep -q 'GEX' summary_metrics/cellranger_arc_metrics_atac_mqc.json \
             && { echo "GEX columns leaked into the ATAC table"; exit 1; } || true
           grep -q 'Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_atac_mqc.json
+          grep -q 'Pipeline version' summary_metrics/cellranger_arc_metrics_library_mqc.json \
+            && { echo "Pipeline version should not be in the library table"; exit 1; } || true
           echo "arc multiqc OK"

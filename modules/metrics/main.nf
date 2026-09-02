@@ -68,6 +68,9 @@ GROUPS = [
     }),
 ]
 SKIP = {"label"}
+# already reported in the Software Versions section, and a long column that
+# pushes the library table wider than the assay ones
+DROP = {"Pipeline version"}
 
 def number(value):
     for cast in (int, float):
@@ -83,7 +86,7 @@ for suffix, title, prefix, visible in GROUPS:
         sample = row.get("label") or row.get("Sample ID") or "sample"
         cells = {}
         for col, value in row.items():
-            if col in SKIP or col is None:
+            if col in SKIP or col in DROP or col is None:
                 continue
             is_assay = col.startswith("ATAC ") or col.startswith("GEX ")
             if prefix is None:
@@ -95,11 +98,12 @@ for suffix, title, prefix, visible in GROUPS:
                     continue
                 name = col[len(prefix):]
             cells[name] = number(value)
-            headers[name] = {
-                "title": name,
-                "description": col,
-                "hidden": bool(visible) and name not in visible,
-            }
+            hide = bool(visible) and name not in visible
+            # Sample ID often repeats the label the row is keyed by; showing it
+            # twice only makes this table wider than the assay ones
+            if name == "Sample ID" and str(value) == str(sample):
+                hide = True
+            headers[name] = {"title": name, "description": col, "hidden": hide}
         if cells:
             data[sample] = cells
 
