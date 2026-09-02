@@ -14,10 +14,16 @@ plots_force_interactive: True
 disable_version_detection: True
 
 # Cell Ranger first, our versions table pinned to the very end.
+# cellranger_arc is left enabled so it starts working the day MultiQC fixes
+# https://github.com/MultiQC/MultiQC/issues/3609 - it cannot parse
+# cellranger-arc 2.2 web summaries today, which is why the pipeline supplies
+# cellranger_arc_metrics itself.
 report_section_order:
   cellranger:
     order: 100
   cellranger_arc:
     order: 90
+  cellranger_arc_metrics:
+    order: 80
   pipeline_software_versions:
     order: -1000

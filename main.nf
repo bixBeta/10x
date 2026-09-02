@@ -614,7 +614,7 @@ workflow GEX {
         CELLRANGER_COUNT.out.run_metrics
             | collect
             | filter { it }
-            | map { csvs -> [ "ALL_metrics_summary.csv", csvs ] }
+            | map { csvs -> [ "ALL_metrics_summary.csv", "", csvs ] }
     )
 
     // A label with several libraries means several GEM wells, counted
@@ -711,7 +711,7 @@ workflow ARC {
         CELLRANGER_ARC_COUNT.out.run_metrics
             | collect
             | filter { it }
-            | map { csvs -> [ "ALL_summary.csv", csvs ] }
+            | map { csvs -> [ "ALL_summary.csv", "cellranger_arc_metrics", csvs ] }
     )
 
     DUMP_VERSIONS( CELLRANGER_ARC_COUNT.out.versions.first().collect() )
@@ -720,7 +720,11 @@ workflow ARC {
 
         checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
 
-        MULTIQC( CELLRANGER_ARC_COUNT.out.run_web_summary.collect(), ch_mqc_config, DUMP_VERSIONS.out.mqc_yml )
+        MULTIQC(
+            CELLRANGER_ARC_COUNT.out.run_web_summary.mix( COMBINE_METRICS.out.mqc ).collect(),
+            ch_mqc_config,
+            DUMP_VERSIONS.out.mqc_yml
+        )
     }
 }
 

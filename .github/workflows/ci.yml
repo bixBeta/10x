@@ -636,4 +636,14 @@ jobs:
             || { cat "$CI_CAPTURE/multiqc.versions.yml"; echo "arc version missing from the table"; exit 1; }
 
           test -f multiqc/BRC_ARC_multiqc_report.html || { ls -lR multiqc; exit 1; }
+
+          # MultiQC 1.35 cannot parse arc 2.2 web summaries (issue 3609), so the
+          # pipeline renders the metrics itself and stages them as custom content
+          echo "--- custom content multiqc saw ---"
+          cat "$CI_CAPTURE/multiqc.custom.txt"
+          grep -qx -- 'cellranger_arc_metrics_mqc.yml' "$CI_CAPTURE/multiqc.custom.txt" \
+            || { echo "the arc metrics section did not reach multiqc"; exit 1; }
+          test -f summary_metrics/cellranger_arc_metrics_mqc.yml
+          grep -q '^plot_type: html' summary_metrics/cellranger_arc_metrics_mqc.yml
+          grep -q 'ATAC Median high-quality fragments per cell' summary_metrics/cellranger_arc_metrics_mqc.yml
           echo "arc multiqc OK"

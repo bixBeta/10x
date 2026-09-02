@@ -6,10 +6,11 @@ process COMBINE_METRICS {
     publishDir "summary_metrics" , mode: "copy", overwrite: true
 
     input:
-        tuple val(outname), path(csvs)
+        tuple val(outname), val(section), path(csvs)
 
     output:
-        path outname , emit: combined
+        path outname          , emit: combined
+        path "*_mqc.yml"      , emit: mqc      , optional: true
 
     script:
     // Header from the first file, rows from all of them, each prefixed with the
@@ -30,6 +31,41 @@ process COMBINE_METRICS {
         }
         { print lab "," \$0 }
     ' ${files} > ${outname}
+
+    # MultiQC's cellranger_arc module cannot parse cellranger-arc 2.2 web
+    # summaries ( MultiQC issue #3609, open ), so for arc the pipeline renders
+    # the metrics itself as custom content. csv, not awk: these tables quote
+    # fields that contain commas.
+    if [ -n "${section}" ] ; then
+        if command -v python3 > /dev/null 2>&1 ; then
+            python3 - "${outname}" "${section}" <<'PYEOF'
+import csv, html, sys
+
+table, section = sys.argv[1], sys.argv[2]
+with open(table, newline="") as fh:
+    rows = list(csv.reader(fh))
+
+if rows:
+    head, body = rows[0], rows[1:]
+    out = ['  <table class="table table-condensed">', "  <thead><tr>"]
+    out += [f"<th>{html.escape(c)}</th>" for c in head]
+    out += ["</tr></thead>", "  <tbody>"]
+    for r in body:
+        out.append("  <tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in r) + "</tr>")
+    out += ["  </tbody></table>"]
+
+    with open(f"{section}_mqc.yml", "w") as fh:
+        fh.write(f"id: {section}\\n")
+        fh.write("section_name: Cell Ranger ARC metrics\\n")
+        fh.write("description: Read from each summary.csv, since MultiQC cannot parse cellranger-arc 2.2 web summaries (MultiQC issue 3609).\\n")
+        fh.write("plot_type: html\\n")
+        fh.write("data: |\\n")
+        fh.write("\\n".join(out) + "\\n")
+PYEOF
+        else
+            echo "WARN: no python3, skipping the ${section} MultiQC section" >&2
+        fi
+    fi
     """
 
     stub:
