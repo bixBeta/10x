@@ -58,8 +58,8 @@ Args:
         |-------|------------------------------------------------------------|
         | label | fastqs                                                     |
         |-------|------------------------------------------------------------|
-        | JS4   | /local/Illumina/DRV/<run>/Unaligned/Project_10488923/Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2 |
-        | JS5   | /local/Illumina/DRV/<run>/Unaligned/Project_10488923/Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2 |
+        | JS4   | /local/Illumina/DRV/<run>/Unaligned/Project_104***/Sample_SC2620_JS4_G3_***_104***_253***_L2 |
+        | JS5   | /local/Illumina/DRV/<run>/Unaligned/Project_104***/Sample_SC2620_JS5_G3_***_104***_253***_L2 |
         |-------|------------------------------------------------------------|
 
         fastqs is either the 10x delivery directory or ANY fastq inside it,
@@ -67,8 +67,8 @@ Args:
         --fastqs always takes a directory. Nothing is copied, staged or renamed.
         Both of these are the same library:
 
-            /local/.../Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2
-            /local/.../Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
+            /local/.../Sample_SC2620_JS4_G3_***_104***_253***_L2
+            /local/.../Sample_SC2620_JS4_G3_***_104***_253***_L2/SC2620_JS4_G3_***_104***_253***_S3_L002_R1_001.fastq.gz
 
         label is yours: short, user defined, and used for --id and for the
         output folder. It is never derived from the path.
@@ -76,9 +76,9 @@ Args:
         --sample is read off the files in the directory, since cellranger has
         to be given the fastq prefix:
 
-            Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
-              SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
-              -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
+            Sample_SC2620_JS4_G3_***_104***_253***_L2/
+              SC2620_JS4_G3_***_104***_253***_S3_L002_R1_001.fastq.gz
+              -> --sample=SC2620_JS4_G3_***_104***_253***
 
         Same library sequenced more than once ( top-ups, extra flow cells ):
         repeat the label. The dirs are passed as ONE comma separated --fastqs,
@@ -110,15 +110,15 @@ Args:
         |-------|--------------------------------|-------------------------|
         | label | fastqs                         | library_type            |
         |-------|--------------------------------|-------------------------|
-        | JS4   | /local/.../Project_10488522    | Gene Expression         |
-        | JS4   | /local/.../Project_10488522    | Chromatin Accessibility |
+        | JS4   | /local/.../Project_104***    | Gene Expression         |
+        | JS4   | /local/.../Project_104***    | Chromatin Accessibility |
         |-------|--------------------------------|-------------------------|
 
         becomes JS4_libraries.csv:
 
             fastqs,sample,library_type
-            /local/.../Project_10488522,SC2619_JS4_BC_MG3_...,Gene Expression
-            /local/.../Project_10488522,SC2619_JS4_MA_...,Chromatin Accessibility
+            /local/.../Project_104***,SC2619_JS4_BC_MG3_...,Gene Expression
+            /local/.../Project_104***,SC2619_JS4_MA_...,Chromatin Accessibility
 
         sample is optional. It is the fastq prefix, and when given it is used
         verbatim for --sample and for the sample column of libraries.csv. It is
@@ -433,9 +433,9 @@ and are counted separately.
 // cellranger --sample must match the fastq prefix INSIDE the delivery dir, which
 // is the dir name without the Sample_ prefix and the trailing lane suffix:
 //
-//   Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
-//     SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
-//     -> SC2620_JS4_G3_Reign_10488923_253GGLLT4
+//   Sample_SC2620_JS4_G3_***_104***_253***_L2/
+//     SC2620_JS4_G3_***_104***_253***_S3_L002_R1_001.fastq.gz
+//     -> SC2620_JS4_G3_***_104***_253***
 //
 // It is read off the files rather than parsed out of the dir name, so an
 // unexpected naming variant fails loudly here instead of inside cellranger.

@@ -122,8 +122,8 @@ Most runs need two columns:
 
 ```csv
 label,fastqs
-JS4,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2
-JS5,/local/Illumina/DRV/260810_RX_0556_253GGLLT4/Unaligned/Project_10488923/Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2
+JS4,/local/Illumina/DRV/260***_RX_0***/Unaligned/Project_104***/Sample_SC2620_JS4_G3_***_104***_253***_L2
+JS5,/local/Illumina/DRV/260***_RX_0***/Unaligned/Project_104***/Sample_SC2620_JS5_G3_***_104***_253***_L2
 ```
 
 **`label`** — your short name for the library. It becomes the output folder and
@@ -146,8 +146,8 @@ Repeat the label. Both runs are pooled into one count.
 
 ```csv
 label,fastqs
-JS5,/local/Illumina/DRV/run1/.../Sample_SC2620_JS5_G3_Sofia_10488923_253GGLLT4_L2
-JS5,/local/Illumina/DRV/run2/.../Sample_SC2620_JS5_G3_Sofia_10488923_999XYZAB2_L3
+JS5,/local/Illumina/DRV/run1/.../Sample_SC2620_JS5_G3_***_104***_253***_L2
+JS5,/local/Illumina/DRV/run2/.../Sample_SC2620_JS5_G3_***_104***_999***_L3
 ```
 
 ### Two GEM wells from one sample
@@ -157,8 +157,8 @@ not comparable across GEM wells, then combined with `cellranger aggr`.
 
 ```csv
 label,library,fastqs
-JS6,JS6_wellA,/local/.../Sample_SC2620_JS6A_G3_Scooter_10488923_253GGLLT4_L2
-JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_Scooter_10488923_253GGLLT4_L2
+JS6,JS6_wellA,/local/.../Sample_SC2620_JS6A_G3_***_104***_253***_L2
+JS6,JS6_wellB,/local/.../Sample_SC2620_JS6B_G3_***_104***_253***_L2
 ```
 
 You get a count per library plus `CELLRANGER_AGGR/JS6/`. Labels with a single
@@ -175,7 +175,7 @@ means. Without it the run stops rather than guessing.
 
 ```csv
 label,fastqs,sample
-JS4,/local/.../Project_10488923,SC2620_JS4_G3_Reign_10488923_253GGLLT4
+JS4,/local/.../Project_104***,SC2620_JS4_G3_***_104***_253***
 ```
 
 ### Multiome (`--mode arc`)
@@ -185,8 +185,8 @@ One label, two rows: the GEX library and the ATAC library, marked with
 
 ```csv
 label,fastqs,sample,library_type
-JS4,/local/.../Project_10488522,SC2619_JS4_BC_MG3_8Healthy_10488522_25FWVCLT4,Gene Expression
-JS4,/local/.../Project_10488522,SC2619_JS4_MA_8Healthy_10488522_23C52HLT4,Chromatin Accessibility
+JS4,/local/.../Project_104***,SC2619_JS4_BC_MG3_***_104***_25F***,Gene Expression
+JS4,/local/.../Project_104***,SC2619_JS4_MA_***_104***_23C***,Chromatin Accessibility
 ```
 
 The pipeline writes the `libraries.csv` that `cellranger-arc` needs and keeps a
@@ -200,9 +200,9 @@ still to come.
 Cell Ranger needs the fastq **prefix**, which is not the directory name:
 
 ```
-Sample_SC2620_JS4_G3_Reign_10488923_253GGLLT4_L2/
-  SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002_R1_001.fastq.gz
-  -> --sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4
+Sample_SC2620_JS4_G3_***_104***_253***_L2/
+  SC2620_JS4_G3_***_104***_253***_S3_L002_R1_001.fastq.gz
+  -> --sample=SC2620_JS4_G3_***_104***_253***
 ```
 
 It is read from the actual filenames, so an unexpected naming variant is caught
