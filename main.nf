@@ -120,7 +120,8 @@ Args:
             /local/.../Project_104***,SC2619_JS4_BC_MG3_...,Gene Expression
             /local/.../Project_104***,SC2619_JS4_MA_...,Chromatin Accessibility
 
-        sample is optional. It is the fastq prefix, and when given it is used
+        sample is optional. It is the fastq prefix - the part BEFORE the
+        _S<n>_L<n>_R<n>_001 tail, not the file name - and when given it is used
         verbatim for --sample and for the sample column of libraries.csv. It is
         only REQUIRED when the fastqs path holds more than one prefix, e.g. a
         Project_* dir carrying both halves of a multiome pair - one row is one
@@ -430,6 +431,22 @@ are pooled as consecutive lanes. Rows differing in library are separate GEM well
 and are counted separately.
 ------------------------------------------------------------------------------------------------------------ */
 
+// R1s for one prefix, or for all of them with prefix "*". A path may be the
+// Sample_* dir itself, or the Project_* dir above it that holds Sample_*/
+// subdirs - both are valid --fastqs values for cellranger, so every lookup
+// looks one level down as well.
+def readsUnder(dir, prefix) {
+
+    def hits = []
+    [ "${dir}/${prefix}_S*_L*_R1*.f*q.gz", "${dir}/*/${prefix}_S*_L*_R1*.f*q.gz" ].each { pattern ->
+        def found = file(pattern)
+        if( found instanceof List ) hits.addAll(found)
+        else if( found )            hits.add(found)
+    }
+
+    hits
+}
+
 // cellranger --sample must match the fastq prefix INSIDE the delivery dir, which
 // is the dir name without the Sample_ prefix and the trailing lane suffix:
 //
@@ -441,17 +458,7 @@ and are counted separately.
 // unexpected naming variant fails loudly here instead of inside cellranger.
 def sampleNames(fq) {
 
-    // A path may be the Sample_* dir itself, or the Project_* dir above it that
-    // holds Sample_*/ subdirs - both are valid --fastqs values for cellranger,
-    // so look one level down as well.
-    def hits = []
-    [ "${fq}/*_R1*.f*q.gz", "${fq}/*/*_R1*.f*q.gz" ].each { pattern ->
-        def found = file(pattern)
-        if( found instanceof List ) hits.addAll(found)
-        else if( found )            hits.add(found)
-    }
-
-    def names = hits.collect { it.name }
+    def names = readsUnder(fq, "*").collect { it.name }
                     .findAll { it ==~ /.*_S\d+_L\d+_R1(_001)?\.f(ast)?q\.gz$/ }
                     .collect { it.replaceFirst(/_S\d+_L\d+_R1(_001)?\.f(ast)?q\.gz$/, '') }
                     .unique()
@@ -507,6 +514,19 @@ def sampleFromFile(name) {
     m ? m[0][1] : null
 }
 
+// What a sample column probably meant, when what it says cannot be found: the
+// illumina tail trimmed back off, whether a whole file name was pasted or just
+// the _S1_L001 that ends the directory listing.
+def samplePrefixHint(given) {
+
+    def stripped = given.replaceFirst(/\.f(ast)?q(\.gz)?$/, '')
+                        .replaceFirst(/_R\d(_001)?$/, '')
+                        .replaceFirst(/_L\d+$/, '')
+                        .replaceFirst(/_S\d+$/, '')
+
+    stripped != given && stripped ? stripped : null
+}
+
 // The sheet accepts either the delivery dir or any fastq inside it, whichever
 // is easier to paste. A file resolves to its parent dir, since --fastqs always
 // takes a directory.
@@ -523,15 +543,20 @@ def resolveFastqs(fq, label, given) {
     // An explicit sample column wins: it is what lands in --sample and in
     // libraries.csv, so the sheet can name it exactly like 10x does.
     if( given ) {
-        def found = file("${dir}/${given}_S*_L*_R1*.f*q.gz")
-        def any   = (found instanceof List) ? found : (found ? [found] : [])
-        if( !any ) {
-            def sub = file("${dir}/*/${given}_S*_L*_R1*.f*q.gz")
-            any = (sub instanceof List) ? sub : (sub ? [sub] : [])
+        if( readsUnder(dir, given) )
+            return [ dir, [ given ] ]
+
+        // The commonest way to get this column wrong is to paste the file name
+        // stem, tail and all. Say so, rather than only reporting nothing found.
+        def hint = samplePrefixHint(given)
+        if( hint && readsUnder(dir, hint) ) {
+            def drop = sampleNames(dir).size() == 1
+                     ? " Or drop the sample column: ${dir} holds this one prefix only, so the pipeline reads it off the files."
+                     : ""
+            error "sample-sheet: ${label}: sample '${given}' is a fastq file name, not a 10x sample prefix. Use '${hint}', the part before _S<n>_L<n>_R<n>_001.${drop}"
         }
-        if( !any )
-            error "sample-sheet: ${label}: no reads for sample '${given}' under ${dir}"
-        return [ dir, [ given ] ]
+
+        error "sample-sheet: ${label}: no reads for sample '${given}' under ${dir}. Expected ${given}_S<n>_L<n>_R1_001.fastq.gz."
     }
 
     if( !d.isDirectory() ) {

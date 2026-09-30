@@ -207,7 +207,10 @@ Sample_SC2620_JS4_G3_***_104***_253***_L2/
 
 It is read from the actual filenames, so an unexpected naming variant is caught
 while reading the sheet rather than inside Cell Ranger. The `sample` column
-overrides it.
+overrides it, and is only needed when one path holds more than one library — a
+`Project_*` directory rather than a single `Sample_*` one. Give it the prefix,
+not the file name: a value still carrying its `_S3_L002` tail is rejected, with
+the prefix it meant named in the error.
 
 The flow cell is part of that prefix, so the same library re-sequenced on a
 different flow cell has a *different* prefix. Both are collected and passed as

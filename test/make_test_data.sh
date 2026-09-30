@@ -64,6 +64,13 @@ label,fastqs
 JS4,${ARCP}
 EOF
 
+# the sample column filled in with a file name stem, illumina tail and all -
+# the error should name the prefix meant rather than only report nothing found
+cat > "${HERE}/sample-sheet-filestem.csv" <<EOF
+label,fastqs,sample
+JS4,${JS4},SC2620_JS4_G3_Reign_10488923_253GGLLT4_S3_L002
+EOF
+
 cat > "${HERE}/sample-sheet.csv" <<EOF
 label,library,fastqs
 JS4,,${JS4}

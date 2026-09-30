@@ -402,6 +402,18 @@ jobs:
           fi
           echo "ambiguity rejected"
 
+      - name: A file name stem in the sample column names the fix
+        run: |
+          set -euo pipefail
+          out=$(nextflow run . -c test/ci.config --sheet test/sample-sheet-filestem.csv --ref test/ref \
+                  --crpath "$PWD/test/fake-cellranger" --multiqc false \
+                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+          echo "$out" | grep -q 'is a fastq file name, not a 10x sample prefix' || { echo "$out" | tail -20; exit 1; }
+          # the prefix it meant, and the simpler fix for a single sample dir
+          echo "$out" | grep -q "Use 'SC2620_JS4_G3_Reign_10488923_253GGLLT4'" || { echo "$out" | tail -20; exit 1; }
+          echo "$out" | grep -q 'drop the sample column' || { echo "$out" | tail -20; exit 1; }
+          echo "file stem hint OK"
+
       - name: Rejects an ATAC library in gex mode
         run: |
           set -euo pipefail
