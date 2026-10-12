@@ -9,6 +9,7 @@ work/
 # excludes modules/cellranger/.
 /CELLRANGER/
 /CELLRANGER_ARC/
+/CELLRANGER_ATAC/
 /CELLRANGER_AGGR/
 /filtered_counts/
 /multiqc/

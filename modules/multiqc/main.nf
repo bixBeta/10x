@@ -16,7 +16,7 @@ process MULTIQC {
     publishDir "multiqc" , mode: "copy", overwrite: true
 
     input:
-        path web_summaries
+        path mqc_inputs
         path mqc_config
         path mqc_versions
 
@@ -28,8 +28,10 @@ process MULTIQC {
     script:
 
     // MultiQC finds cellranger and cellranger-arc runs by matching content
-    // inside web_summary.html, so the labelled summaries are the whole input;
-    // metrics_summary.csv is not one of its search patterns.
+    // inside web_summary.html, so for those modes the labelled summaries are
+    // the whole input; metrics_summary.csv is not one of its search patterns.
+    // There is no cellranger-atac module, so atac mode passes the metrics
+    // table the pipeline rendered instead - see the ATAC workflow in main.nf.
     //
     // mqc_versions is software_versions_mqc.yml. Anything named *_mqc.yml is
     // picked up as custom content, which is how the Software Versions table

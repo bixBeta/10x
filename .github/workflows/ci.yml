@@ -92,6 +92,8 @@ jobs:
             echo "$cfg" | grep -i container; echo "sif path not resolved"; exit 1; }
           echo "$cfg" | grep -q "/local/workdir/10x_analysis/singularity-sifs/cellranger-arc-2.2.0.sif" || {
             echo "arc sif not resolved"; exit 1; }
+          echo "$cfg" | grep -q "/local/workdir/10x_analysis/singularity-sifs/cellranger-atac-2.2.0.sif" || {
+            echo "atac sif not resolved"; exit 1; }
           if echo "$cfg" | grep -q 'ghcr.io' ; then
             echo "config still references a registry"; exit 1
           fi
@@ -393,6 +395,66 @@ jobs:
           grep -q '^JS4,' summary_metrics/ALL_summary.csv
           echo "arc OK"
 
+      - name: scATAC (atac) counts per library
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-atac
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_ATAC web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          export FAKE_TOOL=cellranger-atac FAKE_VERSION=2.2.0
+          nextflow run . -c test/ci.config --mode atac \
+            --sheet test/sample-sheet-atac.csv \
+            --ref   "$PWD/test/ref" \
+            --atacpath "$PWD/test/fake-cellranger" --multiqc false \
+            --chemistry ARC-v1 --localcores 2 --localmem 4
+
+          echo "--- command built for CK1 ---"
+          cat "$CI_CAPTURE/CK1.command.txt"
+          grep -qx -- 'count'                     "$CI_CAPTURE/CK1.command.txt"
+          grep -qx -- '--id=CK1'                  "$CI_CAPTURE/CK1.command.txt"
+          grep -qx -- "--reference=$PWD/test/ref" "$CI_CAPTURE/CK1.command.txt"
+          grep -q  -- '--sample=SC2620_JS4_G3_Reign_10488923_253GGLLT4' "$CI_CAPTURE/CK1.command.txt"
+          # atac takes --reference, never --transcriptome / --libraries
+          if grep -qE -- '--(transcriptome|libraries)=' "$CI_CAPTURE/CK1.command.txt" ; then
+            echo "atac command must not carry gex / arc only flags"; exit 1
+          fi
+          # cellranger-atac has no 'auto' chemistry literal, so the flag is only
+          # passed when asked for - here ARC-v1, the multiome ATAC library
+          grep -q -- '--chemistry=ARC-v1' "$CI_CAPTURE/CK1.command.txt" \
+            || { echo "--chemistry not passed through"; exit 1; }
+
+          # CK2 was sequenced twice: both dirs and both prefixes, comma separated
+          grep -q -- '--fastqs=.*run1.*,.*run2' "$CI_CAPTURE/CK2.command.txt" \
+            || { cat "$CI_CAPTURE/CK2.command.txt"; echo "re-sequencing not pooled"; exit 1; }
+          grep -q -- '--sample=SC2620_JS5_G3_Sofia_10488923_253GGLLT4,SC2620_JS5_G3_Sofia_10488923_999XYZAB2' \
+            "$CI_CAPTURE/CK2.command.txt" || { cat "$CI_CAPTURE/CK2.command.txt"; exit 1; }
+
+          # the outs mirror, and a Signac ready folder per library
+          test -L CELLRANGER_ATAC/CK1/outs
+          for f in filtered_peak_bc_matrix.h5 fragments.tsv.gz fragments.tsv.gz.tbi singlecell.csv ; do
+            test -e "filtered_counts/CK1/$f" || { ls -lR filtered_counts; echo "missing $f"; exit 1; }
+          done
+          test -L web_summary_htmls/CK1_web_summary.html || { ls -l web_summary_htmls; exit 1; }
+          test -L summary_metrics/CK1_summary.csv        || { ls -l summary_metrics;   exit 1; }
+
+          # atac reports summary.csv, so it gets its own combined table
+          echo "--- ALL_summary.csv ---"
+          cat summary_metrics/ALL_summary.csv
+          test "$(wc -l < summary_metrics/ALL_summary.csv)" -eq 3
+          head -1 summary_metrics/ALL_summary.csv | grep -q '^label,'
+          grep -q 'TSS enrichment score' summary_metrics/ALL_summary.csv
+          echo "atac OK"
+
+      - name: Rejects a GEX library in atac mode
+        run: |
+          set -euo pipefail
+          if nextflow run . -c test/ci.config --mode atac --sheet test/sample-sheet-arc.csv \
+               --ref test/ref --atacpath "$PWD/test/fake-cellranger" --multiqc false \
+               --localcores 2 --localmem 4 ; then
+            echo "expected failure: Gene Expression in atac mode"; exit 1
+          fi
+          echo "wrong library_type rejected"
+
       - name: Ambiguous Project dir is rejected
         run: |
           set -euo pipefail
@@ -676,3 +738,45 @@ jobs:
           grep -q 'Pipeline version' summary_metrics/cellranger_arc_metrics_library_mqc.json \
             && { echo "Pipeline version should not be in the library table"; exit 1; } || true
           echo "arc multiqc OK"
+
+      - name: MultiQC covers the atac path too
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-mqcatac
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_ATAC multiqc web_summary_htmls summary_metrics "$CI_CAPTURE"
+          export FAKE_TOOL=cellranger-atac FAKE_VERSION=2.2.0
+
+          nextflow run . -c test/ci.config --mode atac \
+            --sheet test/sample-sheet-atac.csv --ref "$PWD/test/ref" \
+            --atacpath "$PWD/test/fake-cellranger" \
+            --multiqcpath "$PWD/test/fake-multiqc" \
+            --id BRC_ATAC --localcores 2 --localmem 4
+
+          test -f multiqc/BRC_ATAC_multiqc_report.html || { ls -lR multiqc; exit 1; }
+          grep -q 'cellranger-atac' "$CI_CAPTURE/multiqc.versions.yml" \
+            || { cat "$CI_CAPTURE/multiqc.versions.yml"; echo "atac version missing from the table"; exit 1; }
+
+          # MultiQC ships no cellranger-atac module, so the pipeline renders the
+          # metrics itself and the web summaries are deliberately NOT handed over
+          echo "--- custom content multiqc saw ---"
+          cat "$CI_CAPTURE/multiqc.custom.txt"
+          grep -qx -- 'cellranger_atac_metrics_table_mqc.json' "$CI_CAPTURE/multiqc.custom.txt" \
+            || { echo "the atac metrics section did not reach multiqc"; exit 1; }
+          if grep -q 'web_summary' "$CI_CAPTURE/multiqc.inputs.txt" ; then
+            cat "$CI_CAPTURE/multiqc.inputs.txt"
+            echo "atac web summaries must not be fed to multiqc: no module parses them"; exit 1
+          fi
+          # ... but they are still published for a human to open
+          test -L web_summary_htmls/CK1_web_summary.html
+
+          python3 -m pip install --quiet pyyaml
+          python3 test/check_mqc_yaml.py \
+            summary_metrics/cellranger_atac_metrics_table_mqc.json \
+            pipeline_info/software_versions_mqc.yml | tee /tmp/mqcatac.txt
+          grep -q "Cell Ranger ATAC" /tmp/mqcatac.txt || { echo "no ATAC section"; exit 1; }
+          grep -q 'TSS enrichment score' summary_metrics/cellranger_atac_metrics_table_mqc.json
+          grep -q 'Pipeline version' summary_metrics/cellranger_atac_metrics_table_mqc.json \
+            && { echo "Pipeline version should not be in the atac table"; exit 1; } || true
+          grep -A1 'cellranger_atac_metrics_table' assets/multiqc_config.yaml | grep -q 'order:'
+          echo "atac multiqc OK"

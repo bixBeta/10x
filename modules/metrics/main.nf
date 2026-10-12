@@ -45,28 +45,59 @@ table, section = sys.argv[1], sys.argv[2]
 with open(table, newline="") as fh:
     rows = list(csv.DictReader(fh))
 
+# One layout per section id. A group is ( suffix, title, column prefix, the
+# columns shown by default ) - everything else is emitted but hidden, so it is
+# still one click away in the report.
+#
 # Cell Ranger ARC prefixes its columns by assay. MultiQC's header "namespace"
 # only shows in tooltips, so the assays are split into their own sections
-# instead - each one narrow enough to read.
-GROUPS = [
-    ("library", "Cell Ranger ARC: library", None,    None),
-    ("atac",    "Cell Ranger ARC: ATAC",    "ATAC ", {
-        "Median high-quality fragments per cell",
-        "TSS enrichment score",
-        "Fraction of high-quality fragments in cells",
-        "Fraction of transposition events in peaks in cells",
-        "Number of peaks",
-        "Sequenced read pairs",
-    }),
-    ("gex",     "Cell Ranger ARC: GEX",     "GEX ",  {
-        "Median genes per cell",
-        "Median UMI counts per cell",
-        "Mean raw reads per cell",
-        "Fraction of transcriptomic reads in cells",
-        "Total genes detected",
-        "Sequenced read pairs",
-    }),
-]
+# instead - each one narrow enough to read. ATAC alone needs no splitting.
+LAYOUTS = {
+    "cellranger_arc_metrics": [
+        ("library", "Cell Ranger ARC: library", None,    None),
+        ("atac",    "Cell Ranger ARC: ATAC",    "ATAC ", {
+            "Median high-quality fragments per cell",
+            "TSS enrichment score",
+            "Fraction of high-quality fragments in cells",
+            "Fraction of transposition events in peaks in cells",
+            "Number of peaks",
+            "Sequenced read pairs",
+        }),
+        ("gex",     "Cell Ranger ARC: GEX",     "GEX ",  {
+            "Median genes per cell",
+            "Median UMI counts per cell",
+            "Mean raw reads per cell",
+            "Fraction of transcriptomic reads in cells",
+            "Total genes detected",
+            "Sequenced read pairs",
+        }),
+    ],
+    "cellranger_atac_metrics": [
+        ("table",   "Cell Ranger ATAC",         None,    {
+            "Estimated number of cells",
+            "Median high-quality fragments per cell",
+            "TSS enrichment score",
+            "Fraction of high-quality fragments in cells",
+            "Fraction of high-quality fragments overlapping peaks",
+            "Fraction of transposition events in peaks in cells",
+            "Number of peaks",
+            "Sequenced read pairs",
+        }),
+    ],
+}
+
+GROUPS = LAYOUTS.get(section)
+if GROUPS is None:
+    sys.exit(f"no MultiQC layout for section '{section}'")
+
+# why the pipeline renders these rather than letting MultiQC read the html
+WHY = {
+    "cellranger_arc_metrics":
+        "MultiQC cannot parse cellranger-arc 2.2 web summaries itself (MultiQC issue 3609).",
+    "cellranger_atac_metrics":
+        "MultiQC ships no cellranger-atac module, so the web summaries are published but not parsed.",
+}
+
 SKIP = {"label"}
 # already reported in the Software Versions section
 DROP = {"Pipeline version"}
@@ -111,10 +142,7 @@ for suffix, title, prefix, visible in GROUPS:
     doc = {
         "id": section + "_" + suffix,
         "section_name": title,
-        "description": (
-            "From each summary.csv. MultiQC cannot parse cellranger-arc 2.2 web "
-            "summaries itself (MultiQC issue 3609)."
-        ),
+        "description": "From each summary.csv. " + WHY[section],
         "plot_type": "table",
         "pconfig": {"id": section + "_" + suffix + "_table", "col1_header": "Library"},
         "headers": headers,

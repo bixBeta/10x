@@ -118,11 +118,23 @@ done
 
 mkdir -p "${ID}/outs"
 touch "${ID}/outs/web_summary.html"
-printf 'Estimated Number of Cells,Mean Reads per Cell,Median Genes per Cell\n' >  "${ID}/outs/metrics_summary.csv"
-printf '1000,50000,2000\n'                                                      >> "${ID}/outs/metrics_summary.csv"
-touch "${ID}/outs/filtered_feature_bc_matrix.h5"
-# real cellranger writes this, and aggr consumes it
-touch "${ID}/outs/molecule_info.h5"
+
+# atac takes --fastqs / --sample like gex but writes a different outs: summary.csv
+# rather than metrics_summary.csv, a peak matrix rather than a feature one, and
+# the fragments file Signac reads.
+if [ "${FAKE_TOOL:-cellranger}" = "cellranger-atac" ] ; then
+    printf 'Sample ID,Genome,Pipeline version,Estimated number of cells,Median high-quality fragments per cell,Fraction of high-quality fragments in cells,Fraction of high-quality fragments overlapping peaks,Fraction of transposition events in peaks in cells,Number of peaks,TSS enrichment score,Sequenced read pairs,Percent duplicates\n' > "${ID}/outs/summary.csv"
+    printf '%s,CanFam3_Ensembl101annot,2.2.0,"5,062",14416,0.6381,0.4523,0.5112,74832,7.1334,423110222,0.3912\n' "$ID" >> "${ID}/outs/summary.csv"
+    touch "${ID}/outs/filtered_peak_bc_matrix.h5"
+    touch "${ID}/outs/singlecell.csv"
+    touch "${ID}/outs/fragments.tsv.gz" "${ID}/outs/fragments.tsv.gz.tbi"
+else
+    printf 'Estimated Number of Cells,Mean Reads per Cell,Median Genes per Cell\n' >  "${ID}/outs/metrics_summary.csv"
+    printf '1000,50000,2000\n'                                                      >> "${ID}/outs/metrics_summary.csv"
+    touch "${ID}/outs/filtered_feature_bc_matrix.h5"
+    # real cellranger writes this, and aggr consumes it
+    touch "${ID}/outs/molecule_info.h5"
+fi
 
 # Record the invocation for CI. Written outside the task dir because publishDir
 # only publishes files the module declares as outputs, which this is not.

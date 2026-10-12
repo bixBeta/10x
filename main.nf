@@ -20,6 +20,10 @@ params.introns          = null
 params.r1length         = 28
 params.r2length         = null
 
+// atac only
+params.peaks            = null
+params.dimReduce        = null
+
 // --crversion, --container, --crpath, --maxforks, --localcores and --localmem
 // are declared in nextflow.config, since process directives are resolved before
 // this script is parsed.
@@ -120,6 +124,21 @@ Args:
             /local/.../Project_104***,SC2619_JS4_BC_MG3_...,Gene Expression
             /local/.../Project_104***,SC2619_JS4_MA_...,Chromatin Accessibility
 
+        scATAC ( --mode atac ): one row per library, the same shape as gex -
+        cellranger-atac takes --fastqs / --sample, not a libraries.csv. Only
+        Chromatin Accessibility is accepted, and library_type can be left out
+        since that is the only thing this mode counts.
+
+        |-------|----------------------------------------|-------------------------|
+        | label | fastqs                                 | library_type            |
+        |-------|----------------------------------------|-------------------------|
+        | CK1   | /local/.../Sample_SC2617_CK1_MA_..._L1  | Chromatin Accessibility |
+        |-------|----------------------------------------|-------------------------|
+
+        To count the ATAC half of a MULTIOME run on its own, use --mode atac
+        with --chemistry ARC-v1 and an arc reference. --mode arc cannot do it:
+        cellranger-arc needs both libraries and has no single assay mode.
+
         sample is optional. It is the fastq prefix - the part BEFORE the
         _S<n>_L<n>_R<n>_001 tail, not the file name - and when given it is used
         verbatim for --sample and for the sample column of libraries.csv. It is
@@ -127,8 +146,9 @@ Args:
         Project_* dir carrying both halves of a multiome pair - one row is one
         library, so that case is rejected rather than guessed at.
 
-        library_type is optional and defaults to Gene Expression. It takes 10x's
-        own vocabulary, so the value lands in libraries.csv verbatim:
+        library_type is optional and defaults to whatever the mode counts:
+        Gene Expression, or Chromatin Accessibility under --mode atac. It takes
+        10x's own vocabulary, so the value lands in libraries.csv verbatim:
 
             Gene Expression | Chromatin Accessibility | Antibody Capture
             CRISPR Guide Capture | Multiplexing Capture | VDJ-T | VDJ-B
@@ -139,17 +159,24 @@ Args:
 
     * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
                        : use 'arc'  for multiome GEX + ATAC
-                       : use 'atac' for scATAC                 ( not yet implemented )
+                       : use 'atac' for scATAC ( also the ATAC half of a multiome
+                         run on its own, with --chemistry ARC-v1 )
 
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
     * --chemistry      : Cell Ranger chemistry; default <auto>
+                         atac: left to the tool unless set. 'ARC-v1' counts the
+                         ATAC library of a multiome experiment on its own.
     * --expectCells    : Expected number of recovered cells; default <null> ( Cell Ranger estimates )
     * --forceCells     : Force pipeline to use this number of cells
     * --createBam      : Emit the position-sorted BAM; default <false>
     * --introns        : Set true/false to override --include-introns; default <null> ( tool default )
     * --r1length       : Trim R1 to this length; default <28>. Pass 0 to omit the flag.
     * --r2length       : Trim R2 to this length; default <null>
+    * --peaks          : atac only. BED of peaks to use instead of calling them;
+                         default <null> ( cellranger-atac calls its own )
+    * --dimReduce      : atac only. cellranger-atac --dim-reduce: lsa | plsa | pca
+                         default <null> ( tool default, lsa )
     * --multiqc        : Aggregate the web summaries into one MultiQC report; default <true>
                          MultiQC reads cellranger / cellranger-arc web_summary.html,
                          so the report covers whatever was counted this run.
@@ -168,6 +195,7 @@ Args:
   10x software:
     * --crversion      : Cell Ranger version; default <9.0.1>
     * --arcversion     : cellranger-arc version; default <2.2.0>
+    * --atacversion    : cellranger-atac version; default <2.2.0>
     * --engine         : 'singularity' runs a locally built .sif; default <singularity>
                        : 'local'       runs an install under --programs
 
@@ -175,19 +203,24 @@ Args:
         * --sifdir     : Where the images live; default </local/workdir/singularity>
                          -> <sifdir>/cellranger-<crversion>.sif
                          -> <sifdir>/cellranger-arc-<arcversion>.sif
+                         -> <sifdir>/cellranger-atac-<atacversion>.sif
         * --crsif      : Full path to the gex image. Overrides sifdir + crversion.
         * --arcsif     : Full path to the arc image.
+        * --atacsif    : Full path to the atac image.
 
                          Build one with:
-                         containers/build-sif.sh cellranger     10.1.0 <tarball> <sifdir>
-                         containers/build-sif.sh cellranger-arc 2.2.0  <tarball> <sifdir>
+                         containers/build-sif.sh cellranger      10.1.0 <tarball> <sifdir>
+                         containers/build-sif.sh cellranger-arc  2.2.0  <tarball> <sifdir>
+                         containers/build-sif.sh cellranger-atac 2.2.0  <tarball> <sifdir>
 
       local:
         * --programs   : Where the installs live; default </programs>
                          -> /programs/cellranger-<crversion>/cellranger
                          -> /programs/cellranger-arc-<arcversion>/bin/cellranger-arc
+                         -> /programs/cellranger-atac-<atacversion>/cellranger-atac
         * --crpath     : Full path to the cellranger binary. Implies --engine local.
         * --arcpath    : Full path to the cellranger-arc binary. Implies --engine local.
+        * --atacpath   : Full path to the cellranger-atac binary. Implies --engine local.
         * --listPrograms : List what is installed under --programs
 
       Either way the resolved image or binary is checked before anything runs, so
@@ -212,11 +245,28 @@ Args:
       --reference=<ref> --libraries=<label>_libraries.csv \\
       --localcores=<localcores> --localmem=<localmem> --create-bam=<createBam>
 
+  atac mode, one per library:
+
+    <atacbin> count --id=<label> \\
+      --localcores=<localcores> --localmem=<localmem> \\
+      --reference=<ref> \\
+      --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]> \\
+      [ --chemistry=<chemistry> --force-cells=<forceCells> --peaks=<peaks> --dim-reduce=<dimReduce> ]
+
 """
 
     exit 0
 }
 
+
+// Each mode drives a different tool, so the banner reports the one that will
+// actually run rather than always naming cellranger.
+modeTool    = params.mode == "arc" ? "cellranger-arc" : params.mode == "atac" ? "cellranger-atac" : "cellranger"
+modeVersion = params.mode == "arc" ? params.arcversion : params.mode == "atac" ? params.atacversion : params.crversion
+modeEngine  = params.mode == "arc" ? params.arcengine  : params.mode == "atac" ? params.atacengine  : params.crengine
+modeImage   = params.mode == "arc" ? ( params.arcimage  ?: params.arcbin  )
+            : params.mode == "atac" ? ( params.atacimage ?: params.atacbin )
+            :                         ( params.crimage   ?: params.crbin  )
 
 log.info """
 1  0  x      W  O  R  K  F  L  O  W  -  @bixBeta
@@ -232,9 +282,9 @@ r1length     : ${params.r1length}
 localcores   : ${params.localcores}
 localmem     : ${params.localmem}
 maxforks     : ${params.maxforks}
-crversion    : ${params.crversion}
-engine       : ${params.mode == "arc" ? params.arcengine : params.crengine}
-cellranger   : ${params.mode == "arc" ? (params.arcimage ?: params.arcbin) : (params.crimage ?: params.crbin)}
+version      : ${modeTool} ${modeVersion}
+engine       : ${modeEngine}
+cellranger   : ${modeImage}
 """
 
 // Fail here, with the resolved path, rather than a task dying much later.
@@ -330,8 +380,8 @@ Mouse                   :"${refsBase}/Mouse/refdata-cellranger-arc-GRCm39-2024-A
 Nematostella            :"${refsBase}/Nematostella/Nematostella2_2/Nematostella2_2",
 Nematostella_jaNemVect1 :"${refsBase}/Nematostella/jaNemVect1.1/NCBI/jaNemVect1_1"]
 
-// cellranger-atac takes the same arc style references, so atac mode reuses them
-// until it is implemented and the choice can be confirmed against a real run.
+// cellranger-atac --reference takes either an ATAC or an ARC reference, so atac
+// mode reuses the arc set rather than keeping a duplicate list of the same dirs.
 refDirAtac = refDirArc
 
 // Not wired to a mode: VDJ needs cellranger multi / vdj, which this pipeline
@@ -399,6 +449,7 @@ if( params.listRefs ) {
 
 include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
+include {   CELLRANGER_ATAC_COUNT    } from './modules/cellrangeratac'
 include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
 include {   COMBINE_METRICS          } from './modules/metrics'
 include {   MULTIQC                  } from './modules/multiqc'
@@ -497,7 +548,9 @@ def libraryType(raw, label) {
         "vdj"                   : "VDJ"
     ]
 
-    if( !raw ) return "Gene Expression"
+    // No column at all means the only thing the mode counts, so an atac sheet
+    // does not have to repeat Chromatin Accessibility on every row.
+    if( !raw ) return params.mode == "atac" ? "Chromatin Accessibility" : "Gene Expression"
 
     def hit = canonical[ raw.toLowerCase() ]
     if( !hit )
@@ -754,6 +807,73 @@ workflow ARC {
 }
 
 
+/* ---------------------------------------------------------------------------------------------------------
+scATAC Workflow
+
+cellranger-atac counts one library at a time from --fastqs / --sample, like the
+gex path and unlike arc. Nothing here is specific to a standalone ATAC kit: the
+ATAC library of a multiome run is counted the same way, with --chemistry ARC-v1.
+------------------------------------------------------------------------------------------------------------ */
+
+workflow ATAC {
+
+    checkEngine(params.atacengine, params.atacbin, params.atacimage, "cellranger-atac")
+    checkReference(ref, "cellranger-atac")
+
+    if( ref == null ){
+        error "No reference provided. Use --ref < key or path >, see --listRefs"
+    }
+
+    meta_ch = readRows()
+        | map { label, library, dir, samples, ltype ->
+              if( ltype != "Chromatin Accessibility" )
+                  error "sample-sheet: ${label} is '${ltype}'. --mode atac counts Chromatin Accessibility only; use --mode arc for multiome."
+              [ [label, library], [ dir, samples ] ]
+          }
+        | groupTuple
+        | map { key, entries ->
+              // same pooling rule as gex: repeated rows for one library are
+              // re-sequencing runs, passed as comma separated lists
+              def dirs    = entries.collect { it[0] }.unique().sort()
+              def samples = entries.collectMany { it[1] }.unique().sort()
+
+              [ key[1], key[0], dirs, samples ]
+          }
+        | view { library, label, dirs, samples ->
+              "ATAC >> ${library}  ( label: ${label}, fastq dirs: ${dirs.size()}, sample: ${samples.join(',')} )" }
+
+    CELLRANGER_ATAC_COUNT(meta_ch, ref_ch)
+
+    // cellranger-atac reports summary.csv, with its own columns again, so it
+    // gets its own combined table. cellranger-atac aggr is not wired up yet, so
+    // several libraries under one label stay as separate counts.
+    COMBINE_METRICS(
+        CELLRANGER_ATAC_COUNT.out.run_metrics
+            | collect
+            | filter { it }
+            | map { csvs -> [ "ALL_summary.csv", "cellranger_atac_metrics", csvs ] }
+    )
+
+    DUMP_VERSIONS( CELLRANGER_ATAC_COUNT.out.versions.first().collect() )
+
+    if( params.multiqc ) {
+
+        checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
+
+        // MultiQC ships no cellranger-atac module, so the web summaries are
+        // published for humans but not handed to multiqc - the metrics table
+        // COMBINE_METRICS renders is what the report is built from. Feeding it
+        // the html would risk the cellranger_arc module trying to parse it and
+        // taking the whole report down with it ( MultiQC issue #3609 ).
+        MULTIQC(
+            COMBINE_METRICS.out.mqc.collect(),
+            ch_mqc_config,
+            DUMP_VERSIONS.out.mqc_yml
+        )
+    }
+}
+
+
 workflow {
 
     if( params.mode == "gex" ){
@@ -763,7 +883,7 @@ workflow {
 
     else if( params.mode == "atac" ){
 
-        error "atac mode is not implemented yet"
+        ATAC()
     }
 
     else if( params.mode == "arc" ){

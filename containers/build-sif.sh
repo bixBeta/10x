@@ -193,6 +193,7 @@ echo
 case "$TOOL" in
     cellranger)      VERFLAG="--crversion"      ;;
     cellranger-arc)  VERFLAG="--arcversion"     ;;
+    cellranger-atac) VERFLAG="--atacversion"    ;;
     multiqc)         VERFLAG="--multiqcversion" ;;
     *)               VERFLAG="--crversion"      ;;
 esac

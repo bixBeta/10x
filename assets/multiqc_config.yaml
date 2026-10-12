@@ -17,7 +17,8 @@ disable_version_detection: True
 # cellranger_arc is left enabled so it starts working the day MultiQC fixes
 # https://github.com/MultiQC/MultiQC/issues/3609 - it cannot parse
 # cellranger-arc 2.2 web summaries today, which is why the pipeline supplies
-# cellranger_arc_metrics itself.
+# cellranger_arc_metrics itself. There is no cellranger-atac module at all, so
+# cellranger_atac_metrics is rendered by the pipeline for the same reason.
 report_section_order:
   cellranger:
     order: 100
@@ -29,5 +30,7 @@ report_section_order:
     order: 81
   cellranger_arc_metrics_gex:
     order: 80
+  cellranger_atac_metrics_table:
+    order: 70
   pipeline_software_versions:
     order: -1000

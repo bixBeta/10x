@@ -64,6 +64,15 @@ label,fastqs
 JS4,${ARCP}
 EOF
 
+# scATAC: one row per library, same shape as gex. The second label is a
+# re-sequenced library, so --fastqs / --sample have to come out as lists.
+cat > "${HERE}/sample-sheet-atac.csv" <<EOF
+label,fastqs,library_type
+CK1,${JS4},Chromatin Accessibility
+CK2,${JS5a},Chromatin Accessibility
+CK2,${JS5b},Chromatin Accessibility
+EOF
+
 # the sample column filled in with a file name stem, illumina tail and all -
 # the error should name the prefix meant rather than only report nothing found
 cat > "${HERE}/sample-sheet-filestem.csv" <<EOF

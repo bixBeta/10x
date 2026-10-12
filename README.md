@@ -6,6 +6,7 @@
 [![cellranger 10.1.0](https://img.shields.io/badge/cellranger-10.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger 9.0.1](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger-arc 2.2.0](https://img.shields.io/badge/cellranger--arc-2.2.0-6f42c1.svg)](https://www.10xgenomics.com/support/software/cell-ranger-arc)
+[![cellranger-atac 2.2.0](https://img.shields.io/badge/cellranger--atac-2.2.0-e8710a.svg)](https://www.10xgenomics.com/support/software/cell-ranger-atac)
 [![multiqc 1.35](https://img.shields.io/badge/multiqc-1.35-1a9e77.svg)](https://multiqc.info/)
 
 <hr>
@@ -14,9 +15,9 @@
 |---|---|---|
 | `gex` | `cellranger count` | working |
 | `arc` | `cellranger-arc count` | working |
-| — | `cellranger aggr` | working, for multi-library labels |
+| `atac` | `cellranger-atac count` | working |
+| — | `cellranger aggr` | working, for multi-library labels (gex) |
 | — | `multiqc` | working, one report per run |
-| `atac` | `cellranger-atac count` | planned |
 
 Requires Nextflow >= 24.04, tested against 25.04.1.
 
@@ -74,10 +75,20 @@ pipeline_info/        software_versions.yml
 `ALL_metrics_summary.csv` is every per library table stacked, header kept once,
 with a leading `label` column so each row can be traced back — Cell Ranger's
 own `metrics_summary.csv` carries no sample identifier.
-Multiome joins the same directories, and since `cellranger-arc` reports
-different columns it gets its own `ALL_summary.csv`; `CELLRANGER_ARC/<label>/`
-also keeps the generated `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the
-aggregated result.
+Multiome and scATAC join the same directories. Both report `summary.csv` rather
+than `metrics_summary.csv`, with their own columns, so each gets its own
+`ALL_summary.csv`; `CELLRANGER_ARC/<label>/` also keeps the generated
+`libraries.csv`, and `CELLRANGER_AGGR/<label>/` the aggregated result.
+
+For scATAC, `filtered_counts/<label>/` holds what Signac and ArchR actually
+read — the peak matrix, the fragments file with its index, and `singlecell.csv`:
+
+```
+CELLRANGER_ATAC/CK1/outs  -> work/../outs
+filtered_counts/CK1/      filtered_peak_bc_matrix.h5
+                          fragments.tsv.gz  fragments.tsv.gz.tbi
+                          singlecell.csv
+```
 
 ### MultiQC
 
@@ -103,6 +114,12 @@ using MultiQC's column `namespace` is deliberate: a namespace only shows in
 tooltips, which left ATAC and GEX columns of the same name indistinguishable.
 The module is left enabled so its richer section returns the day upstream
 fixes it.
+
+For scATAC there is no `cellranger_atac` module in MultiQC at all, so the same
+approach applies: the metrics are rendered from `summary.csv` as one **Cell
+Ranger ATAC** section, and the web summaries are published for a human to open
+but deliberately not handed to MultiQC — feeding them in risks the
+`cellranger_arc` module trying to parse one and taking the whole report down.
 
 `--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
 `--multiqcversion` selects the image.
@@ -194,6 +211,34 @@ copy with the results. `library_type` also accepts shorthands (`gex`, `atac`,
 `adt`, `citeseq`, `crispr`, `cmo`), and the full 10x vocabulary for the modes
 still to come.
 
+### scATAC (`--mode atac`)
+
+One row per library, the same shape as `gex` — `cellranger-atac` takes
+`--fastqs` / `--sample`, not a `libraries.csv`. The `library_type` column can be
+left out, since Chromatin Accessibility is the only thing this mode counts:
+
+```csv
+label,fastqs
+CK1,/local/.../Sample_SC2617_CK1_MA_***_104***_450***_L1
+```
+
+To count the ATAC half of a **multiome** run on its own, use this mode with an
+arc reference and `--chemistry ARC-v1`:
+
+```bash
+nextflow run bixBeta/10x -r main --mode atac --ref Human --chemistry ARC-v1 \
+  --sheet sample-sheet.csv
+```
+
+`--mode arc` cannot do this. `cellranger-arc count` needs both libraries in its
+`libraries.csv` and has no single-assay mode, and no chemistry setting changes
+that. `--chemistry` is otherwise left off entirely in this mode: unlike
+`cellranger`, `cellranger-atac` detects the configuration itself and takes no
+`auto` literal.
+
+`cellranger-atac aggr` is not wired up, so several libraries under one label
+are counted separately rather than aggregated.
+
 <details>
 <summary>How <code>--sample</code> is worked out</summary>
 
@@ -223,7 +268,10 @@ different flow cell has a *different* prefix. Both are collected and passed as
 `--listRefs` prints the full map. Keys point at the build rather than the
 species directory, and the same key picks the right build for the mode.
 
-| key | gex | arc |
+`atac` uses the `arc` column: `cellranger-atac --reference` takes an ATAC or an
+ARC reference.
+
+| key | gex | arc / atac |
 |---|---|---|
 | `Apoculata_stonyCoral` | `240514_fromSarahArnold/apoculata` | — |
 | `Canine` | `CanFam3_1` | `arc/CanFam3_Ensembl101annot` |
@@ -261,9 +309,12 @@ Images currently built, in `--sifdir`
 | `cellranger-10.1.0.sif` | `--crversion 10.1.0` |
 | `cellranger-arc-2.2.0.sif` | `--arcversion 2.2.0` *(default)* |
 
-`--crsif` / `--arcsif` name an image directly. `--crpath` / `--arcpath` name a
-binary and force `local` for that tool. `--listPrograms` shows what is installed
-under `--programs`.
+`--mode atac` wants `cellranger-atac-<atacversion>.sif`, which has to be built
+first — see below.
+
+`--crsif` / `--arcsif` / `--atacsif` name an image directly. `--crpath` /
+`--arcpath` / `--atacpath` name a binary and force `local` for that tool.
+`--listPrograms` shows what is installed under `--programs`.
 
 The image or binary is checked before any work starts, and the error lists what
 is actually present.
@@ -292,6 +343,10 @@ From a 10x tarball:
 bash containers/build-sif.sh cellranger 10.1.0 cellranger-10.1.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
 ```
 
+```bash
+bash containers/build-sif.sh cellranger-atac 2.2.0 cellranger-atac-2.2.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
+```
+
 An existing image can also be converted rather than rebuilt, if you have one:
 
 ```bash
@@ -310,8 +365,8 @@ Notes for the build host:
 - Sites that auto-bind paths need those mount points inside the image. The
   default `/workdir /local /programs` is created during the build; adjust with
   `SIF_BINDS="/workdir /local /fs"`.
-- `cellranger` keeps its executable at the top of the install dir,
-  `cellranger-arc` in `bin/`. Both are put on `PATH`.
+- `cellranger` and `cellranger-atac` keep their executable at the top of the
+  install dir, `cellranger-arc` in `bin/`. All are put on `PATH`.
 
 ## Params
 
@@ -319,29 +374,31 @@ Notes for the build host:
 |---|---|---|
 | `--id` | `BRC_ID` | BRC Project ID |
 | `--sheet` | `sample-sheet.csv` | |
-| `--mode` | `gex` | `gex`, `arc` |
+| `--mode` | `gex` | `gex`, `atac`, `arc` |
 | `--ref` | — | key from `--listRefs`, or a full path |
-| `--chemistry` | `auto` | |
+| `--chemistry` | `auto` | atac: omitted unless set; `ARC-v1` for a multiome ATAC library |
 | `--expectCells` / `--forceCells` | — | |
 | `--createBam` | `false` | |
 | `--introns` | tool default | `--include-introns` |
 | `--r1length` | `28` | `--r1-length`; pass `0` to omit |
 | `--r2length` | — | `--r2-length` |
+| `--peaks` | — | atac only; a BED to use instead of calling peaks |
+| `--dimReduce` | tool default | atac only; `lsa`, `plsa` or `pca` |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `128` | `--localmem` in GB **and** the memory reserved |
 | `--maxforks` | `1` | concurrent tasks **per process** |
 | `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
-| `--crversion` / `--arcversion` | `9.0.1` / `2.2.0` | selects the image or install |
+| `--crversion` / `--arcversion` / `--atacversion` | `9.0.1` / `2.2.0` / `2.2.0` | selects the image or install |
 | `--multiqc` | `true` | build the MultiQC report |
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
 | `--multiqcconfig` | shipped | a custom MultiQC config |
 | `--sifdir` | see above | where the `.sif` files live |
-| `--crsif` / `--arcsif` | — | a specific image |
+| `--crsif` / `--arcsif` / `--atacsif` | — | a specific image |
 | `--programs` | `/programs` | where native installs live |
-| `--crpath` / `--arcpath` | — | a specific binary; forces `--engine local` |
+| `--crpath` / `--arcpath` / `--atacpath` | — | a specific binary; forces `--engine local` |
 | `--checkversion` | `true` | verify the tool's own version |
 
 The command built per library:
@@ -379,6 +436,7 @@ main.nf                            params, help, reference maps, workflows
 modules/cellranger/main.nf         cellranger count
 modules/cellrangeraggr/main.nf     cellranger aggr
 modules/cellrangerarc/main.nf      cellranger-arc count
+modules/cellrangeratac/main.nf     cellranger-atac count
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries
 containers/build-sif.sh            build a .sif locally

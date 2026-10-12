@@ -24,26 +24,39 @@ done
 
 [ -n "$FILENAME" ] || { echo "fake-multiqc: no --filename given" >&2 ; exit 1 ; }
 
-n=$( ls -1 *_web_summary.html 2>/dev/null | wc -l | tr -d ' ' )
-if [ "$n" -eq 0 ] ; then
-    echo "fake-multiqc: no *_web_summary.html staged, nothing to report on" >&2
+# Something has to have been staged, or the report would cover nothing at all.
+# Web summaries for gex / arc; for atac the pipeline renders the metrics itself
+# as custom content and hands over no html, since no multiqc module parses a
+# cellranger-atac summary.
+summaries=$( ls -1 *_web_summary.html 2>/dev/null || true )
+custom=$(    ls -1 *_mqc.*            2>/dev/null || true )
+
+# the pipeline's own Software Versions section, which is custom content too
+[ -f software_versions_mqc.yml ] || {
+    echo "fake-multiqc: software_versions_mqc.yml was not staged" >&2 ; ls -la >&2 ; exit 1 ; }
+
+if [ -z "$summaries" ] && [ "$custom" = "software_versions_mqc.yml" ] ; then
+    echo "fake-multiqc: only the versions table staged, nothing to report on" >&2
     ls -la >&2
     exit 1
 fi
 
 touch "$FILENAME"
 mkdir -p "${FILENAME%.html}_data"
-ls -1 *_web_summary.html > "${FILENAME%.html}_data/inputs.txt"
 
-# the Software Versions section is supplied by the pipeline as custom content
-[ -f software_versions_mqc.yml ] || {
-    echo "fake-multiqc: software_versions_mqc.yml was not staged" >&2 ; ls -la >&2 ; exit 1 ; }
+# written with if/then rather than a list: an empty glob must leave an empty
+# file behind, not abort the script
+write_list () {
+    if [ -n "$2" ] ; then printf '%s\n' "$2" > "$1" ; else : > "$1" ; fi
+}
+
+write_list "${FILENAME%.html}_data/inputs.txt" "$summaries"
 
 if [ -n "${CI_CAPTURE:-}" ] ; then
     mkdir -p "$CI_CAPTURE"
-    printf '%s\n' "$@"                > "$CI_CAPTURE/multiqc.command.txt"
-    ls -1 *_web_summary.html          > "$CI_CAPTURE/multiqc.inputs.txt"
-    cp software_versions_mqc.yml        "$CI_CAPTURE/multiqc.versions.yml"
-    ls -1 *_mqc.* 2>/dev/null           > "$CI_CAPTURE/multiqc.custom.txt"
-    cp *multiqc_config*.yaml            "$CI_CAPTURE/multiqc.config.yaml" 2>/dev/null || true
+    printf '%s\n' "$@" > "$CI_CAPTURE/multiqc.command.txt"
+    write_list "$CI_CAPTURE/multiqc.inputs.txt" "$summaries"
+    write_list "$CI_CAPTURE/multiqc.custom.txt" "$custom"
+    cp software_versions_mqc.yml "$CI_CAPTURE/multiqc.versions.yml"
+    cp *multiqc_config*.yaml     "$CI_CAPTURE/multiqc.config.yaml" 2>/dev/null || true
 fi

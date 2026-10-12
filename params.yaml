@@ -13,7 +13,7 @@
 # ---- project ----------------------------------------------------------------
 id:            BRC_ID                 # project id, appears in the banner
 sheet:         sample-sheet.csv       # see --help for the columns
-mode:          gex                    # gex | arc
+mode:          gex                    # gex | atac | arc
 
 # ---- reference --------------------------------------------------------------
 # A key from --listRefs, or a full path to a directory holding reference.json.
@@ -37,8 +37,9 @@ ref:           Canine
 #
 engine:        singularity
 sifdir:        /local/workdir/10x_analysis/singularity-sifs
-crversion:     9.0.1                  # gex : 9.0.1 | 10.1.0
-arcversion:    2.2.0                  # arc : 2.2.0
+crversion:     9.0.1                  # gex  : 9.0.1 | 10.1.0
+arcversion:    2.2.0                  # arc  : 2.2.0
+atacversion:   2.2.0                  # atac : 2.2.0
 
 # The tool is asked its own version inside the image and the run stops if it
 # disagrees with the above. Only turn this off for an unlabelled image.
@@ -79,6 +80,12 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # r2length:    90
 # crsif:       /path/to/a/specific/cellranger.sif
 # arcsif:      /path/to/a/specific/cellranger-arc.sif
+# atacsif:     /path/to/a/specific/cellranger-atac.sif
+#
+# atac only:
+# chemistry:   ARC-v1                 # count the ATAC half of a multiome run
+# peaks:       /path/to/peaks.bed     # skip peak calling and use these
+# dimReduce:   lsa                    # lsa ( tool default ) | plsa | pca
 #
 # To run a native install instead of an image:
 # engine:      local
