@@ -23,12 +23,14 @@ ref:           Canine
 # ---- 10x software -----------------------------------------------------------
 # Images are built locally with containers/build-sif.sh and picked up as
 # <sifdir>/cellranger-<crversion>.sif  /  cellranger-arc-<arcversion>.sif
+#                                      /  cellranger-atac-<atacversion>.sif
 #
 # Built and ready to use:
 #
 #   cellranger        9.0.1     cellranger-9.0.1.sif
 #                     10.1.0    cellranger-10.1.0.sif
 #   cellranger-arc    2.2.0     cellranger-arc-2.2.0.sif
+#   cellranger-atac   2.2.0     cellranger-atac-2.2.0.sif
 #   multiqc           1.35      multiqc-1.35.sif
 #
 # Swap by changing the version below - nothing else needs to change. Anything
