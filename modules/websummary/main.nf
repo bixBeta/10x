@@ -7,6 +7,7 @@ process WEBSUMMARY_MQC {
 
     input:
         tuple val(section), path(summaries)
+        val maxpoints
 
     output:
         path "*_mqc.json" , emit: mqc , optional: true
@@ -21,11 +22,14 @@ process WEBSUMMARY_MQC {
     // a regex would have to be double escaped to survive it. String methods
     // are used instead, which keeps the python readable here.
     """
-    python3 - ${section} ${summaries} <<'PYEOF'
+    python3 - ${section} ${maxpoints} ${summaries} <<'PYEOF'
 import json, os, sys
 
 section = sys.argv[1]
-paths   = sys.argv[2:]
+# 0 keeps every point, which is the default: a thinned curve reads as a comb
+# rather than a distribution, and these plots are the ones people squint at
+MAX_POINTS = int(sys.argv[2])
+paths   = sys.argv[3:]
 
 # ---- what to lift out of the web summary -----------------------------------
 # Keys confirmed against a real cellranger-atac 2.2.0 web_summary.html. The
@@ -50,11 +54,6 @@ PLOTS = [
     ("insert",     "Insert Size",           "non_log_insert_size_plot", False, False),
     ("efficiency", "Assay Efficiency",      "assay_efficiency_plot",    False, False),
 ]
-
-# a plot trace can carry 100k points; four libraries of that makes the report
-# unusable, and MultiQC caps its own cellranger series similarly
-MAX_POINTS = 1000
-
 
 def load(path):
     with open(path, errors="replace") as fh:
@@ -105,14 +104,20 @@ def number(value):
     return value
 
 
-def thin(xs, ys):
+def series_of(xs, ys):
     pairs = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
-    if len(pairs) <= MAX_POINTS:
-        return pairs
-    step = len(pairs) / float(MAX_POINTS)
-    keep = [pairs[int(i * step)] for i in range(MAX_POINTS)]
-    keep[-1] = pairs[-1]
-    return keep
+    # sorted by x: multiqc keys a line series by x, so a trace emitted in some
+    # other order would otherwise be drawn as a zigzag
+    try:
+        pairs.sort(key=lambda p: float(p[0]))
+    except (TypeError, ValueError):
+        pass
+    if MAX_POINTS and len(pairs) > MAX_POINTS:
+        step = len(pairs) / float(MAX_POINTS)
+        keep = [pairs[int(i * step)] for i in range(MAX_POINTS)]
+        keep[-1] = pairs[-1]
+        return keep
+    return pairs
 
 
 def write(doc, name):
@@ -191,7 +196,7 @@ for suffix, title, key, per_trace, logaxes in PLOTS:
         for trace in node.get("data") or []:
             if not isinstance(trace, dict):
                 continue
-            pairs = thin(trace.get("x") or [], trace.get("y") or [])
+            pairs = series_of(trace.get("x") or [], trace.get("y") or [])
             if not pairs:
                 continue
             tname = clean(trace.get("name"))
@@ -210,7 +215,8 @@ for suffix, title, key, per_trace, logaxes in PLOTS:
     write({
         "id": sid,
         "section_name": "Cell Ranger ATAC: " + title,
-        "description": "From each web_summary.html, thinned to " + str(MAX_POINTS) + " points per series.",
+        "description": ("From each web_summary.html." if not MAX_POINTS else
+                        "From each web_summary.html, thinned to " + str(MAX_POINTS) + " points per series."),
         "plot_type": "linegraph",
         "pconfig": pconfig,
         "data": series,

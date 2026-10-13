@@ -131,9 +131,12 @@ the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
 | Assay Efficiency | `assay_efficiency_plot` | line |
 
 Every library goes on one axis, so the curves are directly comparable — which
-is the point of aggregating them. Traces are thinned to 1000 points, since a
-knee plot can carry 100k. The tSNE cluster scatters are deliberately skipped:
-a per-library 2D embedding is not comparable across libraries.
+is the point of aggregating them. Every point is kept and each series is sorted
+by x, since a thinned or out-of-order curve reads as a comb rather than a
+distribution; `--mqcpoints <n>` caps the points per series if a run with many
+libraries ever makes the report too heavy. The tSNE cluster scatters are
+deliberately skipped: a per-library 2D embedding is not comparable across
+libraries.
 
 Those tables are richer than `ALL_summary.csv` — the mapping one carries the
 nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
@@ -417,6 +420,7 @@ Notes for the build host:
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
 | `--multiqcconfig` | shipped | a custom MultiQC config |
+| `--mqcpoints` | `0` | points per series in the rendered curves; `0` keeps all |
 | `--sifdir` | see above | where the `.sif` files live |
 | `--crsif` / `--arcsif` / `--atacsif` | — | a specific image |
 | `--programs` | `/programs` | where native installs live |

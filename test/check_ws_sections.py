@@ -13,7 +13,9 @@ import json
 import os
 import sys
 
-MAX_POINTS = 1000
+# what test/make_web_summary.py puts in each knee trace. Asserted exactly, so
+# a point that gets dropped on the way into the report is caught.
+FIXTURE_POINTS = {"Cells": 1800, "Non-cells": 700}
 
 
 def main():
@@ -39,9 +41,17 @@ def main():
     if "<" in json.dumps(pconfig):
         problems.append(f"html left in the knee pconfig: {pconfig}")
 
-    fat = {k: len(v) for k, v in doc["data"].items() if len(v) > MAX_POINTS}
-    if fat:
-        problems.append(f"series not thinned to {MAX_POINTS}: {fat}")
+    # every point is kept by default: a thinned curve reads as a comb
+    for name, series in doc["data"].items():
+        want = FIXTURE_POINTS[name.split(" ", 1)[1]]
+        if len(series) != want:
+            problems.append(f"{name} has {len(series)} points, expected all {want}")
+
+    # multiqc keys a line series by x, so an unsorted trace draws as a zigzag
+    for name, series in doc["data"].items():
+        xs = [float(x) for x in series]
+        if xs != sorted(xs):
+            problems.append(f"{name} is not sorted by x")
 
     # a single trace plot is named by the library alone, not "<label> Cells"
     tss = os.path.join(outdir, "cellranger_atac_metrics_ws_tss_mqc.json")
@@ -71,8 +81,9 @@ def main():
             print("  " + p)
         return 1
 
+    widest = max(len(s) for s in doc["data"].values())
     print(f"web summary sections OK ({len(doc['data'])} knee series, "
-          f"{len(cols)} mapping columns)")
+          f"{widest} points in the widest, {len(cols)} mapping columns)")
     return 0
 
 

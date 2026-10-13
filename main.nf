@@ -861,7 +861,8 @@ workflow ATAC {
     WEBSUMMARY_MQC(
         CELLRANGER_ATAC_COUNT.out.run_web_summary
             | collect
-            | map { htmls -> [ "cellranger_atac_metrics", htmls ] }
+            | map { htmls -> [ "cellranger_atac_metrics", htmls ] },
+        channel.value(params.mqcpoints)
     )
 
     DUMP_VERSIONS( CELLRANGER_ATAC_COUNT.out.versions.first().collect() )
