@@ -128,6 +128,9 @@ if [ "${FAKE_TOOL:-cellranger}" = "cellranger-atac" ] ; then
     touch "${ID}/outs/filtered_peak_bc_matrix.h5"
     touch "${ID}/outs/singlecell.csv"
     touch "${ID}/outs/fragments.tsv.gz" "${ID}/outs/fragments.tsv.gz.tbi"
+    # a web summary with the real key names, so the websummary parser is
+    # exercised rather than just the channel wiring
+    python3 "$( dirname "$0" )/make_web_summary.py" "$ID" "${ID}/outs/web_summary.html" > /dev/null
 else
     printf 'Estimated Number of Cells,Mean Reads per Cell,Median Genes per Cell\n' >  "${ID}/outs/metrics_summary.csv"
     printf '1000,50000,2000\n'                                                      >> "${ID}/outs/metrics_summary.csv"

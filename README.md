@@ -115,11 +115,33 @@ tooltips, which left ATAC and GEX columns of the same name indistinguishable.
 The module is left enabled so its richer section returns the day upstream
 fixes it.
 
-For scATAC there is no `cellranger_atac` module in MultiQC at all, so the same
-approach applies: the metrics are rendered from `summary.csv` as one **Cell
-Ranger ATAC** section, and the web summaries are published for a human to open
-but deliberately not handed to MultiQC — feeding them in risks the
-`cellranger_arc` module trying to parse one and taking the whole report down.
+For scATAC there is no `cellranger_atac` module in MultiQC at all, so the
+pipeline parses the web summary itself. A Cell Ranger web summary carries the
+whole report as one JSON blob on a `const data = {...}` line — tables, plot
+traces and axis labels — which is how MultiQC's own `cellranger` module reads
+the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
+
+| section | from | plot |
+|---|---|---|
+| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own tables | table |
+| Barcode Rank (knee) | `barcode_knee_plot` | log–log line |
+| Fragment Distribution | `fragments_per_cell_plot` | log–log line |
+| TSS Enrichment | `tss_enrichment_plot` | line |
+| Insert Size | `non_log_insert_size_plot` | line |
+| Assay Efficiency | `assay_efficiency_plot` | line |
+
+Every library goes on one axis, so the curves are directly comparable — which
+is the point of aggregating them. Traces are thinned to 1000 points, since a
+knee plot can carry 100k. The tSNE cluster scatters are deliberately skipped:
+a per-library 2D embedding is not comparable across libraries.
+
+Those tables are richer than `ALL_summary.csv` — the mapping one carries the
+nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
+The CSV-derived table is kept alongside them.
+
+The web summaries themselves are published for a human to open but deliberately
+not handed to MultiQC — nothing would parse them, and the `cellranger_arc`
+module trying and failing would take the whole report down.
 
 `--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
 `--multiqcversion` selects the image.
@@ -437,6 +459,7 @@ modules/cellranger/main.nf         cellranger count
 modules/cellrangeraggr/main.nf     cellranger aggr
 modules/cellrangerarc/main.nf      cellranger-arc count
 modules/cellrangeratac/main.nf     cellranger-atac count
+modules/websummary/main.nf         web_summary.html -> multiqc custom content
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries
 containers/build-sif.sh            build a .sif locally

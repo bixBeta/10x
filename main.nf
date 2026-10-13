@@ -450,6 +450,7 @@ if( params.listRefs ) {
 include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   CELLRANGER_ATAC_COUNT    } from './modules/cellrangeratac'
+include {   WEBSUMMARY_MQC           } from './modules/websummary'
 include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
 include {   COMBINE_METRICS          } from './modules/metrics'
 include {   MULTIQC                  } from './modules/multiqc'
@@ -854,19 +855,27 @@ workflow ATAC {
             | map { csvs -> [ "ALL_summary.csv", "cellranger_atac_metrics", csvs ] }
     )
 
+    // Everything the web summary shows - the grouped metric tables, the knee,
+    // TSS and insert size curves - parsed out of its embedded json, since no
+    // multiqc module will do it. summary.csv only carries the flat metrics.
+    WEBSUMMARY_MQC(
+        CELLRANGER_ATAC_COUNT.out.run_web_summary
+            | collect
+            | map { htmls -> [ "cellranger_atac_metrics", htmls ] }
+    )
+
     DUMP_VERSIONS( CELLRANGER_ATAC_COUNT.out.versions.first().collect() )
 
     if( params.multiqc ) {
 
         checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
 
-        // MultiQC ships no cellranger-atac module, so the web summaries are
-        // published for humans but not handed to multiqc - the metrics table
-        // COMBINE_METRICS renders is what the report is built from. Feeding it
-        // the html would risk the cellranger_arc module trying to parse it and
-        // taking the whole report down with it ( MultiQC issue #3609 ).
+        // The html itself is published for humans but NOT handed to multiqc:
+        // nothing would parse it, and the cellranger_arc module trying and
+        // failing would take the whole report down ( MultiQC issue #3609 ).
+        // What multiqc gets is what this pipeline rendered from it.
         MULTIQC(
-            COMBINE_METRICS.out.mqc.collect(),
+            COMBINE_METRICS.out.mqc.mix( WEBSUMMARY_MQC.out.mqc ).collect(),
             ch_mqc_config,
             DUMP_VERSIONS.out.mqc_yml
         )

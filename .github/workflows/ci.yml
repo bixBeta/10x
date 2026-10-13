@@ -779,4 +779,28 @@ jobs:
           grep -q 'Pipeline version' summary_metrics/cellranger_atac_metrics_table_mqc.json \
             && { echo "Pipeline version should not be in the atac table"; exit 1; } || true
           grep -A1 'cellranger_atac_metrics_table' assets/multiqc_config.yaml | grep -q 'order:'
+
+          # the web summary sections: grouped tables plus the curves, all parsed
+          # out of the embedded json by modules/websummary
+          for part in sequencing cells mapping targeting complexity \
+                      knee fragments tss insert efficiency ; do
+            grep -qx -- "cellranger_atac_metrics_ws_${part}_mqc.json" "$CI_CAPTURE/multiqc.custom.txt" \
+              || { cat "$CI_CAPTURE/multiqc.custom.txt"; echo "ws section $part missing"; exit 1; }
+            grep -A1 "cellranger_atac_metrics_ws_${part}:" assets/multiqc_config.yaml | grep -q 'order:' \
+              || { echo "ws section $part has no order in the multiqc config"; exit 1; }
+          done
+
+          # parsed, not grepped: a non numeric x key silently makes the axis
+          # categorical, which is the failure this checker exists to catch
+          python3 test/check_mqc_yaml.py summary_metrics/cellranger_atac_metrics_ws_*_mqc.json \
+            | tee /tmp/mqcws.txt
+          grep -q "valid line plot 'Cell Ranger ATAC: Barcode Rank'"   /tmp/mqcws.txt
+          grep -q "valid line plot 'Cell Ranger ATAC: TSS Enrichment'" /tmp/mqcws.txt
+          grep -q "valid table 'Cell Ranger ATAC: Mapping'"            /tmp/mqcws.txt
+
+          # shape assertions live in a script: a column 0 heredoc inside a
+          # "run: |" block ends the yaml scalar, which has broken this file before
+          python3 test/check_ws_sections.py summary_metrics CK1 CK2
+
+          echo "atac websummary OK"
           echo "atac multiqc OK"

@@ -68,6 +68,32 @@ def main(paths):
             print(f"{path}: valid table '{doc['section_name']}', "
                   f"{len(doc['data'])} rows, {len(shown)} visible / {len(hidden)} hidden")
 
+        elif kind == "linegraph":
+            if not isinstance(doc["data"], dict) or not doc["data"]:
+                print(f"{path}: line plot with no series")
+                bad = True
+                continue
+            # MultiQC coerces x keys with float() for a line plot. A key that
+            # does not convert leaves it a categorical axis instead, silently.
+            bad_x = []
+            for sname, series in doc["data"].items():
+                if not isinstance(series, dict) or not series:
+                    bad_x.append(f"{sname}: empty")
+                    continue
+                for x in series:
+                    try:
+                        float(x)
+                    except (TypeError, ValueError):
+                        bad_x.append(f"{sname}: x={x!r}")
+                        break
+            if bad_x:
+                print(f"{path}: non numeric x values: {bad_x[:3]}")
+                bad = True
+                continue
+            widest = max(len(s) for s in doc["data"].values())
+            print(f"{path}: valid line plot '{doc['section_name']}', "
+                  f"{len(doc['data'])} series, up to {widest} points")
+
         else:
             print(f"{path}: unexpected plot_type {kind}")
             bad = True
