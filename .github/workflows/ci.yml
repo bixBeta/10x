@@ -782,8 +782,7 @@ jobs:
 
           # the web summary sections: grouped tables plus the curves, all parsed
           # out of the embedded json by modules/websummary
-          for part in sequencing cells mapping targeting complexity \
-                      knee fragments tss insert efficiency ; do
+          for part in sequencing cells mapping targeting complexity ; do
             grep -qx -- "cellranger_atac_metrics_ws_${part}_mqc.json" "$CI_CAPTURE/multiqc.custom.txt" \
               || { cat "$CI_CAPTURE/multiqc.custom.txt"; echo "ws section $part missing"; exit 1; }
             grep -A1 "cellranger_atac_metrics_ws_${part}:" assets/multiqc_config.yaml | grep -q 'order:' \
@@ -794,9 +793,12 @@ jobs:
           # categorical, which is the failure this checker exists to catch
           python3 test/check_mqc_yaml.py summary_metrics/cellranger_atac_metrics_ws_*_mqc.json \
             | tee /tmp/mqcws.txt
-          grep -q "valid line plot 'Cell Ranger ATAC: Barcode Rank'"   /tmp/mqcws.txt
-          grep -q "valid line plot 'Cell Ranger ATAC: TSS Enrichment'" /tmp/mqcws.txt
-          grep -q "valid table 'Cell Ranger ATAC: Mapping'"            /tmp/mqcws.txt
+          grep -q "valid table 'Cell Ranger ATAC: Mapping'"    /tmp/mqcws.txt
+          grep -q "valid table 'Cell Ranger ATAC: Targeting'"  /tmp/mqcws.txt
+          # the curves were dropped: cellranger's own plotly figures beat a redraw
+          if ls summary_metrics/*_ws_knee_* summary_metrics/*_ws_tss_* 2>/dev/null | grep -q . ; then
+            echo "line plots should no longer be rendered"; exit 1
+          fi
 
           # shape assertions live in a script: a column 0 heredoc inside a
           # "run: |" block ends the yaml scalar, which has broken this file before

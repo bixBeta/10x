@@ -42,15 +42,5 @@ report_section_order:
     order: 66
   cellranger_atac_metrics_ws_complexity:
     order: 65
-  cellranger_atac_metrics_ws_knee:
-    order: 64
-  cellranger_atac_metrics_ws_fragments:
-    order: 63
-  cellranger_atac_metrics_ws_tss:
-    order: 62
-  cellranger_atac_metrics_ws_insert:
-    order: 61
-  cellranger_atac_metrics_ws_efficiency:
-    order: 60
   pipeline_software_versions:
     order: -1000

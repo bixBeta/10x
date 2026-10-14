@@ -855,14 +855,13 @@ workflow ATAC {
             | map { csvs -> [ "ALL_summary.csv", "cellranger_atac_metrics", csvs ] }
     )
 
-    // Everything the web summary shows - the grouped metric tables, the knee,
-    // TSS and insert size curves - parsed out of its embedded json, since no
-    // multiqc module will do it. summary.csv only carries the flat metrics.
+    // The web summary's grouped metric tables, parsed out of its embedded
+    // json since no multiqc module will do it. Richer than summary.csv: the
+    // mapping table's nucleosome fractions are not in the csv at all.
     WEBSUMMARY_MQC(
         CELLRANGER_ATAC_COUNT.out.run_web_summary
             | collect
-            | map { htmls -> [ "cellranger_atac_metrics", htmls ] },
-        channel.value(params.mqcpoints)
+            | map { htmls -> [ "cellranger_atac_metrics", htmls ] }
     )
 
     DUMP_VERSIONS( CELLRANGER_ATAC_COUNT.out.versions.first().collect() )

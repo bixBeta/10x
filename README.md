@@ -121,33 +121,19 @@ whole report as one JSON blob on a `const data = {...}` line — tables, plot
 traces and axis labels — which is how MultiQC's own `cellranger` module reads
 the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
 
-| section | from | plot |
-|---|---|---|
-| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own tables | table |
-| Barcode Rank (knee) | `barcode_knee_plot` | log–log line |
-| Fragment Distribution | `fragments_per_cell_plot` | log–log line |
-| TSS Enrichment | `tss_enrichment_plot` | line |
-| Insert Size | `non_log_insert_size_plot` | line |
-| Assay Efficiency | `assay_efficiency_plot` | line |
-
-Every library goes on one axis, so the curves are directly comparable — which
-is the point of aggregating them.
-
-These curves are noisy at full resolution: a TSS profile swings a whole
-enrichment unit between adjacent bases, and four of those overlaid read as a
-hairy band rather than four curves. The web summary only looks smooth because
-it draws the same data into a small panel. So each series is **averaged into
-`--mqcpoints` bins** (200 by default, log-spaced where the axis is log) rather
-than sampled — sampling keeps every spike. That cuts the roughness about
-threefold while holding the peak within 5%. `--mqcpoints 0` plots every raw
-point.
-
-The tSNE cluster scatters are deliberately skipped: a per-library 2D embedding
-is not comparable across libraries.
+| section | from |
+|---|---|
+| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own metric tables |
 
 Those tables are richer than `ALL_summary.csv` — the mapping one carries the
 nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
 The CSV-derived table is kept alongside them.
+
+The curves — knee, TSS, insert size — are **not** redrawn. That was tried and
+removed: Cell Ranger's own Plotly figures carry styling a redraw loses, and
+these profiles are noisy at 1 bp, which the web summary hides by drawing into a
+small panel but which reads as a hairy band at report width. Open the per
+library `web_summary.html` for the plots.
 
 The web summaries themselves are published for a human to open but deliberately
 not handed to MultiQC — nothing would parse them, and the `cellranger_arc`
