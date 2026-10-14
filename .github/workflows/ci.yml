@@ -795,10 +795,14 @@ jobs:
             | tee /tmp/mqcws.txt
           grep -q "valid table 'Cell Ranger ATAC: Mapping'"    /tmp/mqcws.txt
           grep -q "valid table 'Cell Ranger ATAC: Targeting'"  /tmp/mqcws.txt
-          # the curves were dropped: cellranger's own plotly figures beat a redraw
-          if ls summary_metrics/*_ws_knee_* summary_metrics/*_ws_tss_* 2>/dev/null | grep -q . ; then
-            echo "line plots should no longer be rendered"; exit 1
-          fi
+
+          # the plots are cellranger's own plotly figures, embedded as html
+          for part in knee fragments tss insert efficiency ; do
+            grep -qx -- "cellranger_atac_metrics_ws_${part}_mqc.html" "$CI_CAPTURE/multiqc.custom.txt" \
+              || { cat "$CI_CAPTURE/multiqc.custom.txt"; echo "figure $part did not reach multiqc"; exit 1; }
+            grep -A1 "cellranger_atac_metrics_ws_${part}:" assets/multiqc_config.yaml | grep -q 'order:' \
+              || { echo "figure $part has no order in the multiqc config"; exit 1; }
+          done
 
           # shape assertions live in a script: a column 0 heredoc inside a
           # "run: |" block ends the yaml scalar, which has broken this file before

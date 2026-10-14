@@ -855,9 +855,11 @@ workflow ATAC {
             | map { csvs -> [ "ALL_summary.csv", "cellranger_atac_metrics", csvs ] }
     )
 
-    // The web summary's grouped metric tables, parsed out of its embedded
-    // json since no multiqc module will do it. Richer than summary.csv: the
-    // mapping table's nucleosome fractions are not in the csv at all.
+    // The web summary's grouped metric tables AND its plotly figures, lifted
+    // out of the embedded json since no multiqc module will do it. The tables
+    // are richer than summary.csv - its nucleosome fractions are not in the
+    // csv at all - and the figures are handed to plotly as cellranger built
+    // them, so they look like the web summary because they are its plots.
     WEBSUMMARY_MQC(
         CELLRANGER_ATAC_COUNT.out.run_web_summary
             | collect
@@ -875,7 +877,10 @@ workflow ATAC {
         // failing would take the whole report down ( MultiQC issue #3609 ).
         // What multiqc gets is what this pipeline rendered from it.
         MULTIQC(
-            COMBINE_METRICS.out.mqc.mix( WEBSUMMARY_MQC.out.mqc ).collect(),
+            COMBINE_METRICS.out.mqc
+                .mix( WEBSUMMARY_MQC.out.mqc )
+                .mix( WEBSUMMARY_MQC.out.mqc_html )
+                .collect(),
             ch_mqc_config,
             DUMP_VERSIONS.out.mqc_yml
         )

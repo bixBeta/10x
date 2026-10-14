@@ -121,19 +121,30 @@ whole report as one JSON blob on a `const data = {...}` line — tables, plot
 traces and axis labels — which is how MultiQC's own `cellranger` module reads
 the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
 
-| section | from |
-|---|---|
-| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own metric tables |
+| section | from | how |
+|---|---|---|
+| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own metric tables | MultiQC tables |
+| Barcode Rank · Fragment Distribution · TSS Enrichment · Insert Size · Assay Efficiency | the report's own plots | Cell Ranger's Plotly figure, embedded |
 
 Those tables are richer than `ALL_summary.csv` — the mapping one carries the
 nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
 The CSV-derived table is kept alongside them.
 
-The curves — knee, TSS, insert size — are **not** redrawn. That was tried and
-removed: Cell Ranger's own Plotly figures carry styling a redraw loses, and
-these profiles are noisy at 1 bp, which the web summary hides by drawing into a
-small panel but which reads as a hairy band at report width. Open the per
-library `web_summary.html` for the plots.
+The plots are **not redrawn**. Each one in a web summary is already a Plotly
+figure (`data` + `layout`), and MultiQC bundles Plotly, so the figure is handed
+to `Plotly.newPlot` as Cell Ranger built it — same axes, same log scales, same
+styling. Only three things change: each trace is prefixed with its library, a
+library gets one colour across every plot (dashes separate traces within it),
+and the per-library subtitle is dropped since several are now overlaid.
+
+Rebuilding them as MultiQC line graphs was tried first and looked wrong: the
+styling is lost, and these profiles are noisy at 1 bp — which the web summary
+hides by drawing into a small panel, and which reads as a hairy band at report
+width. Passing the figure through avoids the question entirely.
+
+This adds roughly 0.5–1.5 MB to the report, mostly the barcode-rank traces.
+The tSNE cluster scatters are deliberately skipped: a per-library 2D embedding
+is not comparable across libraries.
 
 The web summaries themselves are published for a human to open but deliberately
 not handed to MultiQC — nothing would parse them, and the `cellranger_arc`

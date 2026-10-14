@@ -9,17 +9,20 @@ process WEBSUMMARY_MQC {
         tuple val(section), path(summaries)
 
     output:
-        path "*_mqc.json" , emit: mqc , optional: true
+        path "*_mqc.json" , emit: mqc      , optional: true
+        path "*_mqc.html" , emit: mqc_html , optional: true
 
     script:
     // A Cell Ranger web summary carries the whole report as one JSON blob on a
     // "const data = {...}" line. MultiQC's own cellranger module reads it this
     // way, but there is no cellranger-atac module, so the pipeline does.
     //
-    // Only the metric TABLES are lifted out. Redrawing the curves as multiqc
-    // line plots was tried and dropped: cellranger's own plotly figures carry
-    // styling a redraw loses, and the per base noise the web summary hides in
-    // a small panel reads as a hairy band at report width.
+    // The metric tables become multiqc tables. The PLOTS are not redrawn:
+    // each one is already a plotly figure ( data + layout ), and multiqc
+    // bundles plotly, so the figure is handed to Plotly.newPlot as it stands.
+    // Rebuilding them as multiqc line graphs was tried and looked wrong -
+    // cellranger's own styling is lost and the per base noise it hides in a
+    // small panel reads as a hairy band at report width.
     //
     // No backslashes or ${} below: this is a groovy triple quoted string, and
     // a regex would have to be double escaped to survive it. String methods
@@ -41,6 +44,23 @@ TABLES = [
     ("targeting",  "Targeting",           "targeting_table"),
     ("complexity", "Complexity",          "bulk_complexity_table"),
 ]
+
+# Each of these is a plotly figure in the web summary and is passed through
+# untouched apart from naming, colour and the per library subtitle. The tSNE
+# scatters are left out: a per library 2D embedding is not comparable between
+# libraries, which is the whole point of putting them on one axis.
+PLOTS = [
+    ("knee",       "Barcode Rank",          "barcode_knee_plot"),
+    ("fragments",  "Fragment Distribution", "fragments_per_cell_plot"),
+    ("tss",        "TSS Enrichment",        "tss_enrichment_plot"),
+    ("insert",     "Insert Size",           "non_log_insert_size_plot"),
+    ("efficiency", "Assay Efficiency",      "assay_efficiency_plot"),
+]
+
+# one colour per library, so a library keeps its colour across every plot
+PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+           "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
+DASHES = ["solid", "dot", "dash", "dashdot"]
 
 
 def load(path):
@@ -144,6 +164,73 @@ for suffix, title, key in TABLES:
             "data": data,
         }, fh, indent=1)
     print("wrote " + sid + "_mqc.json")
+
+
+def plain_title(layout):
+    # ' Cells<br><sup>HS2 - </sup>' names one library, which is wrong once
+    # several are overlaid. Keep the layout otherwise exactly as cellranger
+    # built it.
+    title = layout.get("title")
+    if isinstance(title, dict):
+        title["text"] = clean(title.get("text"))
+    else:
+        layout["title"] = clean(title)
+
+
+for suffix, title, key in PLOTS:
+    traces, layout = [], None
+    for i, (label, root) in enumerate(reports):
+        fig = root.get(key) or {}
+        if not fig.get("data"):
+            continue
+        if layout is None:
+            layout = dict(fig.get("layout") or {})
+        for j, trace in enumerate(fig["data"]):
+            if not isinstance(trace, dict):
+                continue
+            trace = dict(trace)
+            tname = clean(trace.get("name"))
+            trace["name"] = label + (" " + tname if tname else "")
+            # the library picks the colour, the trace within it the dash, so
+            # Cells and Non-cells stay apart without inventing a second hue
+            line = dict(trace.get("line") or {})
+            line["color"] = PALETTE[i % len(PALETTE)]
+            line["dash"] = DASHES[j % len(DASHES)]
+            trace["line"] = line
+            trace["legendgroup"] = label
+            traces.append(trace)
+
+    if not traces or layout is None:
+        continue
+
+    plain_title(layout)
+    layout["showlegend"] = True
+    layout["height"] = 450
+    layout["margin"] = {"l": 70, "r": 30, "t": 50, "b": 60}
+
+    sid = section + "_ws_" + suffix
+    div = "div_" + sid
+    with open(sid + "_mqc.html", "w") as fh:
+        fh.write("<!--\n")
+        fh.write("id: '" + sid + "'\n")
+        fh.write("section_name: 'Cell Ranger ATAC: " + title + "'\n")
+        fh.write("description: 'Cell Ranger own figure from each web_summary.html, every library on one axis.'\n")
+        fh.write("-->\n")
+        fh.write('<div id="' + div + '" style="width:100%;height:450px"></div>\n')
+        fh.write("<script>\n(function () {\n")
+        fh.write("  var figure = " + json.dumps({"data": traces, "layout": layout}) + ";\n")
+        fh.write("  function draw() {\n")
+        fh.write('    var el = document.getElementById("' + div + '");\n')
+        fh.write("    if (!el || !window.Plotly) { return setTimeout(draw, 100); }\n")
+        fh.write("    window.Plotly.newPlot(el, figure.data, figure.layout, "
+                 "{responsive: true, displaylogo: false});\n")
+        fh.write('    el.setAttribute("data-rendered", "yes");\n')
+        fh.write("  }\n")
+        fh.write('  if (document.readyState === "loading") {\n')
+        fh.write("    document.addEventListener(\"DOMContentLoaded\", draw);\n")
+        fh.write("  } else { draw(); }\n")
+        fh.write("})();\n</script>\n")
+    print("wrote " + sid + "_mqc.html")
 PYEOF
     """
 
