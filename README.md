@@ -131,12 +131,19 @@ the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
 | Assay Efficiency | `assay_efficiency_plot` | line |
 
 Every library goes on one axis, so the curves are directly comparable — which
-is the point of aggregating them. Every point is kept and each series is sorted
-by x, since a thinned or out-of-order curve reads as a comb rather than a
-distribution; `--mqcpoints <n>` caps the points per series if a run with many
-libraries ever makes the report too heavy. The tSNE cluster scatters are
-deliberately skipped: a per-library 2D embedding is not comparable across
-libraries.
+is the point of aggregating them.
+
+These curves are noisy at full resolution: a TSS profile swings a whole
+enrichment unit between adjacent bases, and four of those overlaid read as a
+hairy band rather than four curves. The web summary only looks smooth because
+it draws the same data into a small panel. So each series is **averaged into
+`--mqcpoints` bins** (200 by default, log-spaced where the axis is log) rather
+than sampled — sampling keeps every spike. That cuts the roughness about
+threefold while holding the peak within 5%. `--mqcpoints 0` plots every raw
+point.
+
+The tSNE cluster scatters are deliberately skipped: a per-library 2D embedding
+is not comparable across libraries.
 
 Those tables are richer than `ALL_summary.csv` — the mapping one carries the
 nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
@@ -420,7 +427,7 @@ Notes for the build host:
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
 | `--multiqcconfig` | shipped | a custom MultiQC config |
-| `--mqcpoints` | `0` | points per series in the rendered curves; `0` keeps all |
+| `--mqcpoints` | `200` | bins per series in the rendered curves; `0` plots every raw point |
 | `--sifdir` | see above | where the `.sif` files live |
 | `--crsif` / `--arcsif` / `--atacsif` | — | a specific image |
 | `--programs` | `/programs` | where native installs live |

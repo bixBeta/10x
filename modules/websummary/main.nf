@@ -23,12 +23,16 @@ process WEBSUMMARY_MQC {
     // are used instead, which keeps the python readable here.
     """
     python3 - ${section} ${maxpoints} ${summaries} <<'PYEOF'
-import json, os, sys
+import json, math, os, sys
 
 section = sys.argv[1]
-# 0 keeps every point, which is the default: a thinned curve reads as a comb
-# rather than a distribution, and these plots are the ones people squint at
-MAX_POINTS = int(sys.argv[2])
+# Target points per series. The curves are noisy at full resolution - a TSS
+# profile swings a whole enrichment unit between adjacent bases - so y is
+# AVERAGED within x bins rather than sampled. Sampling keeps every spike and
+# draws a comb; averaging gives the smooth shape the web summary shows, which
+# only looks clean there because it is drawn into a small panel. 0 keeps every
+# raw point.
+NBINS = int(sys.argv[2])
 paths   = sys.argv[3:]
 
 # ---- what to lift out of the web summary -----------------------------------
@@ -45,6 +49,8 @@ TABLES = [
 ]
 
 # ( suffix, title, key, one series per trace, log axes )
+# log axes also decide how the binning is spaced: a knee runs over six decades,
+# so equal width linear bins would put almost every point in the first one.
 # The tSNE plots are deliberately left out: a 2D cluster scatter is not
 # comparable between libraries, which is the whole point of aggregating.
 PLOTS = [
@@ -104,20 +110,48 @@ def number(value):
     return value
 
 
-def series_of(xs, ys):
-    pairs = [(x, y) for x, y in zip(xs, ys) if x is not None and y is not None]
+def series_of(xs, ys, logx):
+    pairs = []
+    for x, y in zip(xs, ys):
+        if x is None or y is None:
+            continue
+        try:
+            fx, fy = float(x), float(y)
+        except (TypeError, ValueError):
+            continue
+        if fx != fx or fy != fy:        # NaN
+            continue
+        if logx and fx <= 0:            # cannot sit on a log axis
+            continue
+        pairs.append((fx, fy))
+
     # sorted by x: multiqc keys a line series by x, so a trace emitted in some
     # other order would otherwise be drawn as a zigzag
-    try:
-        pairs.sort(key=lambda p: float(p[0]))
-    except (TypeError, ValueError):
-        pass
-    if MAX_POINTS and len(pairs) > MAX_POINTS:
-        step = len(pairs) / float(MAX_POINTS)
-        keep = [pairs[int(i * step)] for i in range(MAX_POINTS)]
-        keep[-1] = pairs[-1]
-        return keep
-    return pairs
+    pairs.sort()
+
+    if not NBINS or len(pairs) <= NBINS:
+        return pairs
+
+    # bin on log10(x) for a log axis, so the bins are even on screen
+    def pos(v):
+        return math.log10(v) if logx else v
+
+    lo, hi = pos(pairs[0][0]), pos(pairs[-1][0])
+    if hi <= lo:
+        return pairs
+    width = (hi - lo) / NBINS
+
+    acc = {}
+    for fx, fy in pairs:
+        idx = int((pos(fx) - lo) / width)
+        if idx >= NBINS:
+            idx = NBINS - 1
+        sx, sy, n = acc.get(idx, (0.0, 0.0, 0))
+        acc[idx] = (sx + fx, sy + fy, n + 1)
+
+    # the mean x of each bin, not its midpoint, so the curve stays where the
+    # data actually is
+    return [(acc[i][0] / acc[i][2], acc[i][1] / acc[i][2]) for i in sorted(acc)]
 
 
 def write(doc, name):
@@ -196,7 +230,7 @@ for suffix, title, key, per_trace, logaxes in PLOTS:
         for trace in node.get("data") or []:
             if not isinstance(trace, dict):
                 continue
-            pairs = series_of(trace.get("x") or [], trace.get("y") or [])
+            pairs = series_of(trace.get("x") or [], trace.get("y") or [], logaxes)
             if not pairs:
                 continue
             tname = clean(trace.get("name"))
@@ -215,8 +249,8 @@ for suffix, title, key, per_trace, logaxes in PLOTS:
     write({
         "id": sid,
         "section_name": "Cell Ranger ATAC: " + title,
-        "description": ("From each web_summary.html." if not MAX_POINTS else
-                        "From each web_summary.html, thinned to " + str(MAX_POINTS) + " points per series."),
+        "description": ("From each web_summary.html." if not NBINS else
+                        "From each web_summary.html, averaged into " + str(NBINS) + " bins per series."),
         "plot_type": "linegraph",
         "pconfig": pconfig,
         "data": series,

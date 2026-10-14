@@ -11,6 +11,7 @@ meet. Only the numbers are invented.
 import json
 import math
 import os
+import random
 import sys
 
 
@@ -33,9 +34,22 @@ def plot(title, label, xlab, ylab, traces):
     }
 
 
+def wobble(seed):
+    """Deterministic 1 bp noise, like a real TSS or insert size profile.
+
+    Without it the fixture is a clean analytic curve and the binning in
+    modules/websummary is never actually exercised.
+    """
+    rng = random.Random(seed)
+    return lambda: 1.0 + rng.uniform(-0.09, 0.09)
+
+
 def build(label):
     # a knee-ish curve, and deliberately more points than the parser keeps so
     # the thinning is exercised
+    tss_noise = wobble(label + "tss")
+    ins_noise = wobble(label + "ins")
+
     n = 2500
     rank = list(range(1, n + 1))
     frags = [max(1, int(20000 * math.exp(-i / 400.0))) for i in rank]
@@ -98,13 +112,14 @@ def build(label):
             "Enrichment around TSS", label,
             "Relative Position (bp from TSS)", "Relative Enrichment",
             [trace("Cells", list(range(-1000, 1001)),
-                   [1 + 6 * math.exp(-(x / 150.0) ** 2) for x in range(-1000, 1001)])],
+                   [(1 + 6 * math.exp(-(x / 150.0) ** 2)) * tss_noise()
+                    for x in range(-1000, 1001)])],
         ),
         "non_log_insert_size_plot": plot(
             "Insert Size Distribution", label,
             "Insert Size", "Fragment Count (linear scale)",
             [trace("Cells", list(range(775)),
-                   [int(1e6 * math.exp(-i / 120.0)) for i in range(775)])],
+                   [int(1e6 * math.exp(-i / 120.0) * ins_noise()) for i in range(775)])],
         ),
         "assay_efficiency_plot": plot(
             "Median Unique Fragments per Cell", label,
