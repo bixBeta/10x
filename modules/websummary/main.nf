@@ -211,25 +211,31 @@ for suffix, title, key in PLOTS:
     sid = section + "_ws_" + suffix
     div = "div_" + sid
     with open(sid + "_mqc.html", "w") as fh:
-        fh.write("<!--\n")
-        fh.write("id: '" + sid + "'\n")
-        fh.write("section_name: 'Cell Ranger ATAC: " + title + "'\n")
-        fh.write("description: 'Cell Ranger own figure from each web_summary.html, every library on one axis.'\n")
-        fh.write("-->\n")
-        fh.write('<div id="' + div + '" style="width:100%;height:450px"></div>\n')
-        fh.write("<script>\n(function () {\n")
-        fh.write("  var figure = " + json.dumps({"data": traces, "layout": layout}) + ";\n")
-        fh.write("  function draw() {\n")
-        fh.write('    var el = document.getElementById("' + div + '");\n')
-        fh.write("    if (!el || !window.Plotly) { return setTimeout(draw, 100); }\n")
-        fh.write("    window.Plotly.newPlot(el, figure.data, figure.layout, "
-                 "{responsive: true, displaylogo: false});\n")
-        fh.write('    el.setAttribute("data-rendered", "yes");\n')
-        fh.write("  }\n")
-        fh.write('  if (document.readyState === "loading") {\n')
-        fh.write("    document.addEventListener(\"DOMContentLoaded\", draw);\n")
-        fh.write("  } else { draw(); }\n")
-        fh.write("})();\n</script>\n")
+        # print(), not fh.write with an escape: this block is pasted into a
+        # groovy triple quoted string, where a single backslash n becomes a
+        # real newline before python ever sees it
+        print("<!--", file=fh)
+        print("id: '" + sid + "'", file=fh)
+        print("section_name: 'Cell Ranger ATAC: " + title + "'", file=fh)
+        print("description: 'Cell Ranger own figure from each web_summary.html, "
+              "every library on one axis.'", file=fh)
+        print("-->", file=fh)
+        print('<div id="' + div + '" style="width:100%;height:450px"></div>', file=fh)
+        print("<script>", file=fh)
+        print("(function () {", file=fh)
+        print("  var figure = " + json.dumps({"data": traces, "layout": layout}) + ";", file=fh)
+        print("  function draw() {", file=fh)
+        print('    var el = document.getElementById("' + div + '");', file=fh)
+        print("    if (!el || !window.Plotly) { return setTimeout(draw, 100); }", file=fh)
+        print("    window.Plotly.newPlot(el, figure.data, figure.layout, "
+              "{responsive: true, displaylogo: false});", file=fh)
+        print('    el.setAttribute("data-rendered", "yes");', file=fh)
+        print("  }", file=fh)
+        print('  if (document.readyState === "loading") {', file=fh)
+        print('    document.addEventListener("DOMContentLoaded", draw);', file=fh)
+        print("  } else { draw(); }", file=fh)
+        print("})();", file=fh)
+        print("</script>", file=fh)
     print("wrote " + sid + "_mqc.html")
 PYEOF
     """

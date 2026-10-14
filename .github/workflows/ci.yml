@@ -76,6 +76,14 @@ jobs:
           head -40 /tmp/v2lint.txt
           exit 0
 
+      - name: Module escapes survive groovy
+        run: |
+          set -euo pipefail
+          # a lone backslash in a process script is consumed by the groovy
+          # string before the task runs, which fails inside the task rather
+          # than at parse time - i.e. after the counting, on a real run
+          python3 test/check_module_escapes.py modules/*/main.nf
+
       - name: Help text
         run: nextflow run . --help
 
