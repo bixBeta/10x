@@ -493,6 +493,12 @@ jobs:
           grep -q ',2,Gene Expression$'  "$CI_CAPTURE/EW1.multi_config.csv"
           grep -q ',2,Antibody Capture$' "$CI_CAPTURE/EW1.multi_config.csv"
           grep -q ',5,VDJ$'              "$CI_CAPTURE/EW1.multi_config.csv"
+          # gene expression first, then feature barcode, VDJ last - the order a
+          # hand written config uses. Alphabetical would invert the first two.
+          order=$(sed -n '/\[libraries\]/,$p' "$CI_CAPTURE/EW1.multi_config.csv" \
+                    | tail -n +3 | awk -F, '{print $NF}' | paste -sd'|' -)
+          test "$order" = "Gene Expression|Antibody Capture|VDJ" \
+            || { echo "library order is '$order'"; exit 1; }
           test "$(grep -c ',.*,.*,' "$CI_CAPTURE/EW1.multi_config.csv")" -eq 4   # header + 3
 
           echo "--- command built for EW1 ---"

@@ -1017,8 +1017,21 @@ workflow MULTI {
               if( types.any { it in ["Antibody Capture", "CRISPR Guide Capture"] } && !params.featureref )
                   error "multi: ${label} has a ${types.find{ it in ['Antibody Capture','CRISPR Guide Capture'] }} library but no --featureref was given.\n    It is the panel csv, e.g. --featureref /local/.../TotalSeq_C_..._Antibody_reference.csv"
 
-              // deterministic order: group by assay, then by prefix
-              def ordered = rows.unique().sort { a1, b1 -> a1[2] <=> b1[2] ?: a1[1] <=> b1[1] }
+              // Deterministic order, and the one 10x writes by hand: gene
+              // expression first, then the feature barcode assays, VDJ last.
+              // Sorting the library_type strings alphabetically instead would
+              // put Antibody Capture above Gene Expression, which is valid but
+              // does not match a hand written config.
+              def rank = [ "Gene Expression"      : 0,
+                           "Antibody Capture"     : 1,
+                           "CRISPR Guide Capture" : 2,
+                           "Multiplexing Capture" : 3,
+                           "VDJ"                  : 4,
+                           "VDJ-T"                : 5,
+                           "VDJ-B"                : 6 ]
+
+              def ordered = rows.unique().sort { a1, b1 ->
+                  ( rank[a1[2]] ?: 99 ) <=> ( rank[b1[2]] ?: 99 ) ?: a1[1] <=> b1[1] }
 
               [ label, ordered ]
           }
