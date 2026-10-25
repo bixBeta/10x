@@ -518,6 +518,12 @@ jobs:
           test -L summary_metrics/EW1_EW1_metrics_summary.csv || { ls -l summary_metrics; exit 1; }
           test -e filtered_counts/EW1/EW1_EW1_filtered_feature_bc_matrix.h5
 
+          # one stacked table for the run, header once, label on every row
+          echo "--- ALL_metrics_summary.csv ---"
+          cat summary_metrics/ALL_metrics_summary.csv
+          head -1 summary_metrics/ALL_metrics_summary.csv | grep -q '^label,'
+          grep -q '^EW1_EW1,' summary_metrics/ALL_metrics_summary.csv
+
           # createBam defaults to false, so nothing is collected. The bams/
           # directory itself may exist: nextflow creates a publishDir target
           # even when its pattern matches nothing, so assert on the contents.

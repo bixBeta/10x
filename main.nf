@@ -1052,6 +1052,17 @@ workflow MULTI {
         channel.value( params.featureref ?: "" )
     )
 
+    // One table for the whole run, header once, each row carrying the sample it
+    // came from. The section is empty, so nothing is rendered for multiqc from
+    // it: a multi metrics_summary.csv is long form ( one metric per row ) and
+    // needs its own layout rather than the wide one the other modes stack.
+    COMBINE_METRICS(
+        CELLRANGER_MULTI.out.run_metrics
+            | collect
+            | filter { it }
+            | map { csvs -> [ "ALL_metrics_summary.csv", "", csvs ] }
+    )
+
     DUMP_VERSIONS( CELLRANGER_MULTI.out.versions.first().collect() )
 
     if( params.multiqc ) {
