@@ -98,6 +98,12 @@ if [ "$SUBCMD" = "multi" ] ; then
     printf 'Cells,Gene Expression,Cells,"5,000"\n'            >> "${ID}/outs/per_sample_outs/${ID}/metrics_summary.csv"
     touch "${ID}/outs/per_sample_outs/${ID}/count/sample_filtered_feature_bc_matrix.h5"
 
+    # real cellranger writes the bam only when create-bam is true
+    if grep -qx 'create-bam,true' "$CSV" ; then
+        touch "${ID}/outs/per_sample_outs/${ID}/count/sample_alignments.bam"
+        touch "${ID}/outs/per_sample_outs/${ID}/count/sample_alignments.bam.bai"
+    fi
+
     if [ -n "${CI_CAPTURE:-}" ] ; then
         mkdir -p "$CI_CAPTURE"
         printf '%s\n' "$@" > "${CI_CAPTURE}/${ID}.command.txt"

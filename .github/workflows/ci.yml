@@ -517,7 +517,32 @@ jobs:
           test -L web_summary_htmls/EW1_EW1_web_summary.html || { ls -l web_summary_htmls; exit 1; }
           test -L summary_metrics/EW1_EW1_metrics_summary.csv || { ls -l summary_metrics; exit 1; }
           test -e filtered_counts/EW1/EW1_EW1_filtered_feature_bc_matrix.h5
+
+          # createBam defaults to false, so no bam and no bams/ collection
+          if [ -d bams ] ; then echo "bams/ published with createBam false"; ls -l bams; exit 1; fi
           echo "multi OK"
+
+      - name: multi collects the bams when createBam is true
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-multibam
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_MULTI bams "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --mode multi \
+            --sheet test/sample-sheet-multi.csv \
+            --ref   "$PWD/test/ref" \
+            --vdjref "$PWD/test/vdjref" \
+            --featureref "$PWD/test/feature_ref.csv" \
+            --createBam true \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          grep -qx 'create-bam,true' "$CI_CAPTURE/EW1.multi_config.csv"
+          test -L bams/EW1_EW1_alignments.bam     || { ls -lR bams 2>/dev/null; exit 1; }
+          test -L bams/EW1_EW1_alignments.bam.bai || { ls -lR bams; exit 1; }
+          # a link into work/, not a copy
+          readlink bams/EW1_EW1_alignments.bam | grep -q '/work/'
+          echo "multi bams OK"
 
       - name: multi rejects a missing vdj reference
         run: |

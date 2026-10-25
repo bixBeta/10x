@@ -87,6 +87,18 @@ keeps the generated config beside it, and links the per-sample results out of
 `<label>_<sample>_metrics_summary.csv` — multi writes one directory per sample,
 which is one for a plain run and several when multiplexed.
 
+With `--createBam true` it also gathers every sample's alignments into one
+place:
+
+```
+bams/   EW1_SC2622_EW1_SC2622_alignments.bam(.bai)   -> work/../per_sample_outs/.../count/
+        EW2_SC2622_EW2_SC2622_alignments.bam(.bai)
+```
+
+Links, not copies. The per-run `unassigned_alignments.bam` and the VDJ contig
+BAMs are left where Cell Ranger put them, reachable through the `outs` mirror.
+With `createBam` false there is nothing to collect and no `bams/` directory.
+
 For scATAC, `filtered_counts/<label>/` holds what Signac and ArchR actually
 read — the peak matrix, the fragments file with its index, and `singlecell.csv`:
 
@@ -498,7 +510,7 @@ Notes for the build host:
 | `--ref` | — | key from `--listRefs`, or a full path |
 | `--chemistry` | `auto` | atac: omitted unless set; `ARC-v1` for a multiome ATAC library |
 | `--expectCells` / `--forceCells` | — | |
-| `--createBam` | `false` | |
+| `--createBam` | `false` | multi also collects the per-sample BAMs into `bams/` |
 | `--introns` | tool default | `--include-introns` |
 | `--r1length` | `28` | `--r1-length`; pass `0` to omit. multi writes it into the config |
 | `--r2length` | — | `--r2-length` |

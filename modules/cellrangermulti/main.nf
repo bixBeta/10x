@@ -23,6 +23,11 @@ process CELLRANGER_MULTI {
 
     // flat collections across labels, for a quick look over a whole run
     publishDir "filtered_counts/${label}"  , mode: "symlink", overwrite: true , pattern: "*_filtered_feature_bc_matrix.h5"
+
+    // every sample's alignments in one place, when --createBam wrote any.
+    // The per run unassigned_alignments.bam and the VDJ contig bams are not
+    // collected: they are still reachable through the outs mirror.
+    publishDir "bams"                      , mode: "symlink", overwrite: true , pattern: "*_alignments.bam*"
     publishDir "web_summary_htmls"         , mode: "symlink", overwrite: true , pattern: "*_web_summary.html"
     publishDir "summary_metrics"           , mode: "symlink", overwrite: true , pattern: "*_metrics_summary.csv"
 
@@ -38,6 +43,7 @@ process CELLRANGER_MULTI {
         path "*_web_summary.html"                       , emit: run_web_summary , optional: true
         path "*_metrics_summary.csv"                    , emit: run_metrics     , optional: true
         path "*_filtered_feature_bc_matrix.h5"          , emit: filtered_link   , optional: true
+        path "*_alignments.bam*"                        , emit: bam             , optional: true
         path "versions.yml"                             , emit: versions
 
     script:
@@ -129,6 +135,13 @@ process CELLRANGER_MULTI {
             if [ -e "\${d}count/sample_filtered_feature_bc_matrix.h5" ] ; then
                 ln -s "\${d}count/sample_filtered_feature_bc_matrix.h5" ${label}_\${s}_filtered_feature_bc_matrix.h5
             fi
+            # only present when create-bam was true
+            if [ -e "\${d}count/sample_alignments.bam" ] ; then
+                ln -s "\${d}count/sample_alignments.bam" ${label}_\${s}_alignments.bam
+            fi
+            if [ -e "\${d}count/sample_alignments.bam.bai" ] ; then
+                ln -s "\${d}count/sample_alignments.bam.bai" ${label}_\${s}_alignments.bam.bai
+            fi
         fi
     done
 
@@ -156,7 +169,11 @@ process CELLRANGER_MULTI {
     touch outs/per_sample_outs/${label}/web_summary.html
     touch outs/per_sample_outs/${label}/metrics_summary.csv
     touch outs/per_sample_outs/${label}/count/sample_filtered_feature_bc_matrix.h5
+    touch outs/per_sample_outs/${label}/count/sample_alignments.bam
+    touch outs/per_sample_outs/${label}/count/sample_alignments.bam.bai
 
+    ln -s outs/per_sample_outs/${label}/count/sample_alignments.bam     ${label}_${label}_alignments.bam
+    ln -s outs/per_sample_outs/${label}/count/sample_alignments.bam.bai ${label}_${label}_alignments.bam.bai
     ln -s outs/per_sample_outs/${label}/web_summary.html    ${label}_${label}_web_summary.html
     ln -s outs/per_sample_outs/${label}/metrics_summary.csv ${label}_${label}_metrics_summary.csv
     ln -s outs/per_sample_outs/${label}/count/sample_filtered_feature_bc_matrix.h5 ${label}_${label}_filtered_feature_bc_matrix.h5
