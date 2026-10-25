@@ -518,8 +518,12 @@ jobs:
           test -L summary_metrics/EW1_EW1_metrics_summary.csv || { ls -l summary_metrics; exit 1; }
           test -e filtered_counts/EW1/EW1_EW1_filtered_feature_bc_matrix.h5
 
-          # createBam defaults to false, so no bam and no bams/ collection
-          if [ -d bams ] ; then echo "bams/ published with createBam false"; ls -l bams; exit 1; fi
+          # createBam defaults to false, so nothing is collected. The bams/
+          # directory itself may exist: nextflow creates a publishDir target
+          # even when its pattern matches nothing, so assert on the contents.
+          if ls bams/*_alignments.bam* 2>/dev/null | grep -q . ; then
+            echo "bams published with createBam false"; ls -l bams; exit 1
+          fi
           echo "multi OK"
 
       - name: multi collects the bams when createBam is true
