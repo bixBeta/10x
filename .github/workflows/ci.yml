@@ -463,6 +463,66 @@ jobs:
           fi
           echo "wrong library_type rejected"
 
+      - name: multi builds the config and runs
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-multi
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_MULTI web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --mode multi \
+            --sheet test/sample-sheet-multi.csv \
+            --ref   "$PWD/test/ref" \
+            --vdjref "$PWD/test/vdjref" \
+            --featureref "$PWD/test/feature_ref.csv" \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          echo "--- EW1_multi_config.csv ---"
+          cat "$CI_CAPTURE/EW1.multi_config.csv"
+
+          # every section the sheet implies, and nothing it does not
+          grep -qx '\[gene-expression\]' "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx '\[vdj\]'             "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx '\[feature\]'         "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx "reference,$PWD/test/ref"            "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx "reference,$PWD/test/vdjref"         "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx "reference,$PWD/test/feature_ref.csv" "$CI_CAPTURE/EW1.multi_config.csv"
+
+          # the libraries table, with the lanes column carried through
+          grep -qx 'fastq_id,fastqs,lanes,feature_types' "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -q ',2,Gene Expression$'  "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -q ',2,Antibody Capture$' "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -q ',5,VDJ$'              "$CI_CAPTURE/EW1.multi_config.csv"
+          test "$(grep -c ',.*,.*,' "$CI_CAPTURE/EW1.multi_config.csv")" -eq 4   # header + 3
+
+          echo "--- command built for EW1 ---"
+          cat "$CI_CAPTURE/EW1.command.txt"
+          grep -qx -- 'multi'                              "$CI_CAPTURE/EW1.command.txt"
+          grep -qx -- '--id=EW1'                           "$CI_CAPTURE/EW1.command.txt"
+          grep -qx -- '--csv=EW1_multi_config.csv'         "$CI_CAPTURE/EW1.command.txt"
+          # multi takes everything through the config, never these
+          if grep -qE -- '--(transcriptome|fastqs|sample|libraries|reference)=' "$CI_CAPTURE/EW1.command.txt" ; then
+            echo "multi command must not carry per library flags"; exit 1
+          fi
+
+          # outputs, and the config kept beside them
+          test -L CELLRANGER_MULTI/EW1/outs
+          test -f CELLRANGER_MULTI/EW1/EW1_multi_config.csv
+          test -L web_summary_htmls/EW1_EW1_web_summary.html || { ls -l web_summary_htmls; exit 1; }
+          test -L summary_metrics/EW1_EW1_metrics_summary.csv || { ls -l summary_metrics; exit 1; }
+          test -e filtered_counts/EW1/EW1_EW1_filtered_feature_bc_matrix.h5
+          echo "multi OK"
+
+      - name: multi rejects a missing vdj reference
+        run: |
+          set -euo pipefail
+          out=$(nextflow run . -c test/ci.config --mode multi \
+                  --sheet test/sample-sheet-multi-novdjref.csv --ref "$PWD/test/ref" \
+                  --crpath "$PWD/test/fake-cellranger" --multiqc false \
+                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+          echo "$out" | grep -q 'has a VDJ library but no --vdjref' || { echo "$out" | tail -20; exit 1; }
+          echo "missing vdjref rejected"
+
       - name: Ambiguous Project dir is rejected
         run: |
           set -euo pipefail

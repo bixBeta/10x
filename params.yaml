@@ -13,7 +13,7 @@
 # ---- project ----------------------------------------------------------------
 id:            BRC_ID                 # project id, appears in the banner
 sheet:         sample-sheet.csv       # see --help for the columns
-mode:          gex                    # gex | atac | arc
+mode:          gex                    # gex | atac | arc | multi
 
 # ---- reference --------------------------------------------------------------
 # A key from --listRefs, or a full path to a directory holding reference.json.
@@ -88,6 +88,13 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # chemistry:   ARC-v1                 # count the ATAC half of a multiome run
 # peaks:       /path/to/peaks.bed     # skip peak calling and use these
 # dimReduce:   lsa                    # lsa ( tool default ) | plsa | pca
+#
+# multi only: cellranger multi needs a reference per assay in the sheet.
+# ref stays the gex transcriptome; these two are required only when the sheet
+# carries a VDJ or an Antibody Capture / CRISPR library.
+# vdjref:      Human                  # key from --listRefs, or a full path
+# featureref:  /local/.../TotalSeq_C_..._Antibody_reference.csv
+# createBam:   true                   # multi writes create-bam into the config
 #
 # To run a native install instead of an image:
 # engine:      local

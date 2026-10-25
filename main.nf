@@ -24,6 +24,10 @@ params.r2length         = null
 params.peaks            = null
 params.dimReduce        = null
 
+// multi only: cellranger multi needs a reference per assay present in the sheet
+params.vdjref           = null
+params.featureref       = null
+
 // --crversion, --container, --crpath, --maxforks, --localcores and --localmem
 // are declared in nextflow.config, since process directives are resolved before
 // this script is parsed.
@@ -139,6 +143,44 @@ Args:
         with --chemistry ARC-v1 and an arc reference. --mode arc cannot do it:
         cellranger-arc needs both libraries and has no single assay mode.
 
+        MULTI ( --mode multi ): one label carries every library of one sample,
+        told apart by library_type. cellranger multi takes them together
+        through a config csv, which this pipeline writes for you.
+
+        |-------|----------------------------|-------|------------------|
+        | label | fastqs                     | lanes | library_type     |
+        |-------|----------------------------|-------|------------------|
+        | EW1   | /local/.../Project_104***  | 2     | Gene Expression  |
+        | EW1   | /local/.../Project_104***  | 2     | Antibody Capture |
+        | EW1   | /local/.../Project_104***  | 5     | VDJ              |
+        |-------|----------------------------|-------|------------------|
+
+        becomes EW1_multi_config.csv:
+
+            [gene-expression]
+            reference,<--ref>
+            create-bam,<--createBam>
+
+            [vdj]
+            reference,<--vdjref>
+
+            [feature]
+            reference,<--featureref>
+
+            [libraries]
+            fastq_id,fastqs,lanes,feature_types
+            SC2622_EW1_G5_***,/local/.../Project_104***,2,Gene Expression
+            SC2622_EW1_CSP_***,/local/.../Project_104***,2,Antibody Capture
+            SC2622_EW1_VDJ_***,/local/.../Project_104***,5,VDJ
+
+        lanes is OPTIONAL and multi only. It restricts the library to those
+        flow cell lanes; leave it out and 'any' is used. Several lanes are
+        separated with a PIPE, since the comma is the csv delimiter: 1|2|3.
+        A range works too: 1-4.
+
+        The [vdj] and [feature] sections are only written when a library needs
+        them, since an empty section is an error rather than a no-op.
+
         sample is optional. It is the fastq prefix - the part BEFORE the
         _S<n>_L<n>_R<n>_001 tail, not the file name - and when given it is used
         verbatim for --sample and for the sample column of libraries.csv. It is
@@ -157,10 +199,12 @@ Args:
         cmo, cellplex.
         -----------------------------------------------------------
 
-    * --mode           : use 'gex'  for 3'/5' gene expression; default <gex>
-                       : use 'arc'  for multiome GEX + ATAC
-                       : use 'atac' for scATAC ( also the ATAC half of a multiome
+    * --mode           : use 'gex'   for 3'/5' gene expression; default <gex>
+                       : use 'arc'   for multiome GEX + ATAC
+                       : use 'atac'  for scATAC ( also the ATAC half of a multiome
                          run on its own, with --chemistry ARC-v1 )
+                       : use 'multi' for cellranger multi: GEX plus any of
+                         Antibody Capture ( CITE-seq ), CRISPR and VDJ
 
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
@@ -177,6 +221,12 @@ Args:
                          default <null> ( cellranger-atac calls its own )
     * --dimReduce      : atac only. cellranger-atac --dim-reduce: lsa | plsa | pca
                          default <null> ( tool default, lsa )
+    * --vdjref         : multi only. VDJ reference for the [vdj] section; a key
+                         from --listRefs or a full path. Required when the sheet
+                         carries a VDJ library.
+    * --featureref     : multi only. The feature barcode panel csv for the
+                         [feature] section. Required when the sheet carries an
+                         Antibody Capture or CRISPR library.
     * --multiqc        : Aggregate the web summaries into one MultiQC report; default <true>
                          MultiQC reads cellranger / cellranger-arc web_summary.html,
                          so the report covers whatever was counted this run.
@@ -384,9 +434,11 @@ Nematostella_jaNemVect1 :"${refsBase}/Nematostella/jaNemVect1.1/NCBI/jaNemVect1_
 // mode reuses the arc set rather than keeping a duplicate list of the same dirs.
 refDirAtac = refDirArc
 
-// Not wired to a mode: VDJ needs cellranger multi / vdj, which this pipeline
-// does not run yet.
-//   ${refsBase}/Mouse/refdata-cellranger-vdj-GRCm38-alts-ensembl-7.0.0
+// VDJ references, for --mode multi. These are a different build from the gex
+// ones, so --vdjref is its own key rather than being derived from --ref.
+refDirVdj = [
+Human                   :"${refsBase}/Human/refdata-cellranger-vdj-GRCh38-alts-ensembl-7.1.0",
+Mouse                   :"${refsBase}/Mouse/refdata-cellranger-vdj-GRCm38-alts-ensembl-7.0.0"]
 
 
 // A cellranger reference is a directory holding reference.json. A key that
@@ -444,6 +496,14 @@ if( params.listRefs ) {
 
     refDirArc.each(printMap)
 
+    log.info """
+    Available 10x VDJ References   ( --vdjref, for --mode multi )
+    =========================================================================================================================
+    """
+    .stripIndent()
+
+    refDirVdj.each(printMap)
+
     exit 0
 }
 
@@ -451,6 +511,7 @@ include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   CELLRANGER_ATAC_COUNT    } from './modules/cellrangeratac'
 include {   WEBSUMMARY_MQC           } from './modules/websummary'
+include {   CELLRANGER_MULTI         } from './modules/cellrangermulti'
 include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
 include {   COMBINE_METRICS          } from './modules/metrics'
 include {   MULTIQC                  } from './modules/multiqc'
@@ -473,6 +534,9 @@ if( refMap.containsKey(params.ref) ){
 }
 
 ref_ch = channel.value(ref)
+
+// --vdjref takes a key from refDirVdj or a full path, like --ref
+vdjRef = refDirVdj.containsKey(params.vdjref) ? refDirVdj[params.vdjref] : params.vdjref
 
 
 /* ---------------------------------------------------------------------------------------------------------
@@ -648,6 +712,30 @@ def readRows() {
 
               [ label, library, res[0], res[1], ltype ]
           }
+}
+
+
+// cellranger multi names every library individually in its config, so unlike
+// the gex path nothing is pooled into comma separated lists: one sheet row with
+// several prefixes under it becomes several [libraries] rows.
+def readRowsMulti() {
+
+    ch_sheet
+        | splitCsv( header:true )
+        | flatMap { row ->
+              def label = row.label?.trim()
+              def fq    = row.fastqs?.trim()
+
+              if( !label ) error "sample-sheet: every row needs a label"
+              if( !fq )    error "sample-sheet: ${label} is missing fastqs ( a 10x delivery dir, or any fastq in it )"
+
+              def ltype = libraryType(row.library_type?.trim(), label)
+              def res   = resolveFastqs(fq, label, row.sample?.trim())
+              def lanes = row.lanes?.trim()
+
+              res[1].collect { s -> [ label, [ res[0], s, ltype, lanes ] ] }
+          }
+        | groupTuple
 }
 
 
@@ -888,6 +976,81 @@ workflow ATAC {
 }
 
 
+/* ---------------------------------------------------------------------------------------------------------
+MULTI Workflow
+
+One label carries every library of one sample - Gene Expression plus any of
+Antibody Capture, CRISPR and VDJ - and cellranger multi takes them together
+through a config csv, which is generated per label from the sheet.
+------------------------------------------------------------------------------------------------------------ */
+
+workflow MULTI {
+
+    checkEngine(params.crengine, params.crbin, params.crimage, "cellranger")
+    checkReference(ref, "cellranger")
+
+    if( ref == null ){
+        error "No reference provided. Use --ref < key or path >, see --listRefs"
+    }
+
+    multi_ch = readRowsMulti()
+        | map { label, rows ->
+
+              def supported = ["Gene Expression", "Antibody Capture",
+                               "CRISPR Guide Capture", "Multiplexing Capture",
+                               "VDJ", "VDJ-T", "VDJ-B"]
+
+              def types = rows.collect { it[2] }.unique()
+
+              def unsupported = types.findAll { !( it in supported ) }
+              if( unsupported )
+                  error "multi: ${label} has library_type(s) cellranger multi cannot take: ${unsupported.join(', ')}"
+
+              if( !types.contains("Gene Expression") )
+                  error "multi: ${label} has no Gene Expression library. cellranger multi needs one, see --help"
+
+              // a section with no reference is an error inside cellranger, so
+              // the reference is required as soon as a library needs it
+              if( types.any { it.startsWith("VDJ") } && !vdjRef )
+                  error "multi: ${label} has a VDJ library but no --vdjref was given. See --listRefs."
+
+              if( types.any { it in ["Antibody Capture", "CRISPR Guide Capture"] } && !params.featureref )
+                  error "multi: ${label} has a ${types.find{ it in ['Antibody Capture','CRISPR Guide Capture'] }} library but no --featureref was given.\n    It is the panel csv, e.g. --featureref /local/.../TotalSeq_C_..._Antibody_reference.csv"
+
+              // deterministic order: group by assay, then by prefix
+              def ordered = rows.unique().sort { a1, b1 -> a1[2] <=> b1[2] ?: a1[1] <=> b1[1] }
+
+              [ label, ordered ]
+          }
+        | view { label, rows ->
+              "MULTI >> ${label}  ( libraries: " + rows.collect{ "${it[1]} [${it[2]}]" }.join(' + ') + " )" }
+
+    if( vdjRef )           checkReference(vdjRef, "cellranger vdj")
+    if( params.featureref && !workflow.stubRun && !file(params.featureref).exists() )
+        error "No feature reference csv at: ${params.featureref}"
+
+    CELLRANGER_MULTI(
+        multi_ch,
+        ref_ch,
+        channel.value( vdjRef ?: "" ),
+        channel.value( params.featureref ?: "" )
+    )
+
+    DUMP_VERSIONS( CELLRANGER_MULTI.out.versions.first().collect() )
+
+    if( params.multiqc ) {
+
+        checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
+
+        MULTIQC(
+            CELLRANGER_MULTI.out.run_web_summary.collect(),
+            ch_mqc_config,
+            DUMP_VERSIONS.out.mqc_yml
+        )
+    }
+}
+
+
 workflow {
 
     if( params.mode == "gex" ){
@@ -903,6 +1066,11 @@ workflow {
     else if( params.mode == "arc" ){
 
         ARC()
+    }
+
+    else if( params.mode == "multi" ){
+
+        MULTI()
     }
 
     else {
