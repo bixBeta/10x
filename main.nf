@@ -1022,16 +1022,19 @@ workflow MULTI {
               // Sorting the library_type strings alphabetically instead would
               // put Antibody Capture above Gene Expression, which is valid but
               // does not match a hand written config.
-              def rank = [ "Gene Expression"      : 0,
-                           "Antibody Capture"     : 1,
-                           "CRISPR Guide Capture" : 2,
-                           "Multiplexing Capture" : 3,
-                           "VDJ"                  : 4,
-                           "VDJ-T"                : 5,
-                           "VDJ-B"                : 6 ]
+              // A list and indexOf, not a map of ranks: the first rank would
+              // be 0, and groovy's elvis treats 0 as false, so `rank[t] ?: 99`
+              // silently sorted Gene Expression LAST. The elvis on the second
+              // comparison below is correct - there 0 means "equal, fall
+              // through to the tiebreak", which is the idiom.
+              def assays = [ "Gene Expression", "Antibody Capture",
+                             "CRISPR Guide Capture", "Multiplexing Capture",
+                             "VDJ", "VDJ-T", "VDJ-B" ]
 
               def ordered = rows.unique().sort { a1, b1 ->
-                  ( rank[a1[2]] ?: 99 ) <=> ( rank[b1[2]] ?: 99 ) ?: a1[1] <=> b1[1] }
+                  def ra = assays.indexOf(a1[2])
+                  def rb = assays.indexOf(b1[2])
+                  ( ra < 0 ? 99 : ra ) <=> ( rb < 0 ? 99 : rb ) ?: a1[1] <=> b1[1] }
 
               [ label, ordered ]
           }
