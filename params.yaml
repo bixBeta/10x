@@ -27,7 +27,8 @@ ref:           Canine
 #
 # Built and ready to use:
 #
-#   cellranger        9.0.1     cellranger-9.0.1.sif
+#   cellranger        8.0.1     cellranger-8.0.1.sif
+#                     9.0.1     cellranger-9.0.1.sif
 #                     10.1.0    cellranger-10.1.0.sif
 #   cellranger-arc    2.2.0     cellranger-arc-2.2.0.sif
 #   cellranger-atac   2.2.0     cellranger-atac-2.2.0.sif
@@ -39,7 +40,10 @@ ref:           Canine
 #
 engine:        singularity
 sifdir:        /local/workdir/10x_analysis/singularity-sifs
-crversion:     9.0.1                  # gex  : 9.0.1 | 10.1.0
+# crversion drives gex AND multi - both run the cellranger binary, and multi
+# is one of its subcommands. Pick the version a project was started on: results
+# are not comparable across majors, so an existing project stays on its own.
+crversion:     9.0.1                  # gex, multi : 8.0.1 | 9.0.1 | 10.1.0
 arcversion:    2.2.0                  # arc  : 2.2.0
 atacversion:   2.2.0                  # atac : 2.2.0
 

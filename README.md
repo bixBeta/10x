@@ -437,6 +437,7 @@ Images currently built, in `--sifdir`
 
 | image | select with |
 |---|---|
+| `cellranger-8.0.1.sif` | `--crversion 8.0.1` |
 | `cellranger-9.0.1.sif` | `--crversion 9.0.1` *(default)* |
 | `cellranger-10.1.0.sif` | `--crversion 10.1.0` |
 | `cellranger-arc-2.2.0.sif` | `--arcversion 2.2.0` *(default)* |
@@ -450,6 +451,10 @@ first — see below.
 
 The image or binary is checked before any work starts, and the error lists what
 is actually present.
+
+Results are not comparable across Cell Ranger majors, so a project started on
+one version stays on it — `crversion` in `params.yaml` is the only thing to
+change, and the guard below catches a mismatch before any counting.
 
 ### Which version am I really running?
 
@@ -524,7 +529,7 @@ Notes for the build host:
 | `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
-| `--crversion` / `--arcversion` / `--atacversion` | `9.0.1` / `2.2.0` / `2.2.0` | selects the image or install |
+| `--crversion` / `--arcversion` / `--atacversion` | `9.0.1` / `2.2.0` / `2.2.0` | selects the image or install. `--crversion` drives `gex` **and** `multi` |
 | `--multiqc` | `true` | build the MultiQC report |
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
