@@ -94,8 +94,20 @@ if [ "$SUBCMD" = "multi" ] ; then
 
     mkdir -p "${ID}/outs/per_sample_outs/${ID}/count"
     touch "${ID}/outs/per_sample_outs/${ID}/web_summary.html"
-    printf 'Category,Library Type,Metric Name,Metric Value\n' >  "${ID}/outs/per_sample_outs/${ID}/metrics_summary.csv"
-    printf 'Cells,Gene Expression,Cells,"5,000"\n'            >> "${ID}/outs/per_sample_outs/${ID}/metrics_summary.csv"
+    # the real long form: one metric per row, Grouped By is what makes a
+    # metric repeat within a section
+    m="${ID}/outs/per_sample_outs/${ID}/metrics_summary.csv"
+    printf 'Category,Library Type,Grouped By,Group Name,Metric Name,Metric Value\n' > "$m"
+    printf 'Cells,Gene Expression,,,Cells,"12,196"\n'                              >> "$m"
+    printf 'Cells,Gene Expression,,,Mean reads per cell,"30,927"\n'                >> "$m"
+    printf 'Cells,Antibody Capture,,,Cells,"12,196"\n'                             >> "$m"
+    printf 'Cells,VDJ T,,,Cells,"5,934"\n'                                         >> "$m"
+    printf 'Library,Gene Expression,Physical library ID,GEX_1,Number of reads,"377,190,354"\n' >> "$m"
+    printf 'Library,Gene Expression,Fastq ID,SC2622_%s_G5,Number of reads,"377,190,354"\n' "$ID" >> "$m"
+    printf 'Library,Gene Expression,,,Estimated number of cells,"12,196"\n'        >> "$m"
+    printf 'Library,Gene Expression,,,Valid barcodes,96.3%%\n'                      >> "$m"
+    printf 'Library,Antibody Capture,,,Estimated number of cells,"12,196"\n'       >> "$m"
+    printf 'Library,VDJ T,,,Estimated number of cells,"5,934"\n'                   >> "$m"
     touch "${ID}/outs/per_sample_outs/${ID}/count/sample_filtered_feature_bc_matrix.h5"
 
     # real cellranger writes the bam only when create-bam is true

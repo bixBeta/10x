@@ -76,6 +76,14 @@ jobs:
           head -40 /tmp/v2lint.txt
           exit 0
 
+      - name: Workflow file is well formed
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pyyaml
+          # a column 0 heredoc inside a "run: |" block ends the yaml scalar,
+          # which has silently broken this file before
+          python3 test/check_ci_yaml.py .github/workflows/ci.yml
+
       - name: Module escapes survive groovy
         run: |
           set -euo pipefail
@@ -523,6 +531,22 @@ jobs:
           cat summary_metrics/ALL_metrics_summary.csv
           head -1 summary_metrics/ALL_metrics_summary.csv | grep -q '^label,'
           grep -q '^EW1_EW1,' summary_metrics/ALL_metrics_summary.csv
+
+          # the long form csv pivoted into one table per ( Category, Library Type )
+          for part in cells_gene_expression cells_antibody_capture cells_vdj_t \
+                      library_gene_expression library_antibody_capture library_vdj_t ; do
+            grep -A1 "cellranger_multi_metrics_${part}:" assets/multiqc_config.yaml | grep -q 'order:' \
+              || { echo "multi section $part has no order in the multiqc config"; exit 1; }
+          done
+
+          python3 -m pip install --quiet pyyaml
+          python3 test/check_mqc_yaml.py summary_metrics/cellranger_multi_metrics_*_mqc.json \
+            | tee /tmp/mqcmulti.txt
+          grep -q "Cell Ranger multi: Cells - Gene Expression"   /tmp/mqcmulti.txt
+          grep -q "Cell Ranger multi: Library - Gene Expression" /tmp/mqcmulti.txt
+          # shape assertions live in a script: a column 0 heredoc inside a
+          # "run: |" block ends the yaml scalar, which has broken this file before
+          python3 test/check_multi_metrics.py summary_metrics
 
           # createBam defaults to false, so nothing is collected. The bams/
           # directory itself may exist: nextflow creates a publishDir target

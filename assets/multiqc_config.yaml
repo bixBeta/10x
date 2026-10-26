@@ -52,5 +52,17 @@ report_section_order:
     order: 61
   cellranger_atac_metrics_ws_efficiency:
     order: 60
+  cellranger_multi_metrics_cells_gene_expression:
+    order: 59
+  cellranger_multi_metrics_cells_antibody_capture:
+    order: 58
+  cellranger_multi_metrics_cells_vdj_t:
+    order: 57
+  cellranger_multi_metrics_library_gene_expression:
+    order: 56
+  cellranger_multi_metrics_library_antibody_capture:
+    order: 55
+  cellranger_multi_metrics_library_vdj_t:
+    order: 54
   pipeline_software_versions:
     order: -1000

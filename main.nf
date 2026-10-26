@@ -512,6 +512,7 @@ include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   CELLRANGER_ATAC_COUNT    } from './modules/cellrangeratac'
 include {   WEBSUMMARY_MQC           } from './modules/websummary'
 include {   CELLRANGER_MULTI         } from './modules/cellrangermulti'
+include {   MULTI_METRICS_MQC        } from './modules/multimetrics'
 include {   CELLRANGER_AGGR          } from './modules/cellrangeraggr'
 include {   COMBINE_METRICS          } from './modules/metrics'
 include {   MULTIQC                  } from './modules/multiqc'
@@ -1063,14 +1064,26 @@ workflow MULTI {
             | map { csvs -> [ "ALL_metrics_summary.csv", "", csvs ] }
     )
 
+    // The same csvs pivoted into one multiqc table per ( Category, Library
+    // Type ): rows are samples, columns are metric names.
+    MULTI_METRICS_MQC(
+        CELLRANGER_MULTI.out.run_metrics
+            | collect
+            | filter { it }
+            | map { csvs -> [ "cellranger_multi_metrics", csvs ] }
+    )
+
     DUMP_VERSIONS( CELLRANGER_MULTI.out.versions.first().collect() )
 
     if( params.multiqc ) {
 
         checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
 
+        // The web summaries go in as well. Nothing parses a multi summary
+        // today - multiqc's cellranger module matches on subcommand "count" -
+        // but they cost nothing and start working if that changes.
         MULTIQC(
-            CELLRANGER_MULTI.out.run_web_summary.collect(),
+            CELLRANGER_MULTI.out.run_web_summary.mix( MULTI_METRICS_MQC.out.mqc ).collect(),
             ch_mqc_config,
             DUMP_VERSIONS.out.mqc_yml
         )
