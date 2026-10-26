@@ -10,6 +10,7 @@ work/
 /CELLRANGER/
 /CELLRANGER_ARC/
 /CELLRANGER_ATAC/
+/CELLRANGER_MULTI/
 /CELLRANGER_AGGR/
 /filtered_counts/
 /multiqc/
@@ -26,6 +27,8 @@ test/Illumina/
 test/fastq/
 test/ref/
 test/refparent/
+test/vdjref/
+test/feature_ref.csv
 test/sample-sheet*.csv
 test/sheet-*.csv
 test/params.yaml

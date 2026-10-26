@@ -60,6 +60,70 @@ if [ "$SUBCMD" = "aggr" ] ; then
     exit 0
 fi
 
+# multi form: --csv is a generated multi config. Check the sections and that
+# every [libraries] row points at reads that exist, which is what real
+# cellranger multi would fail on.
+if [ "$SUBCMD" = "multi" ] ; then
+    [ -f "$CSV" ] || { echo "fake-cellranger: no such multi csv: $CSV" >&2 ; exit 1 ; }
+
+    grep -qx '\[gene-expression\]' "$CSV" || { echo "fake-cellranger: no [gene-expression] section" >&2 ; exit 1 ; }
+    grep -qx '\[libraries\]'       "$CSV" || { echo "fake-cellranger: no [libraries] section" >&2 ; exit 1 ; }
+    grep -qx 'fastq_id,fastqs,lanes,feature_types' "$CSV" \
+        || { echo "fake-cellranger: bad [libraries] header" >&2 ; sed -n '/\[libraries\]/,+1p' "$CSV" >&2 ; exit 1 ; }
+
+    # an empty section is an error in real cellranger, so it must not be written
+    for sec in vdj feature ; do
+        if grep -qx "\[${sec}\]" "$CSV" ; then
+            grep -A1 -x "\[${sec}\]" "$CSV" | grep -q '^reference,' \
+                || { echo "fake-cellranger: [${sec}] has no reference" >&2 ; exit 1 ; }
+        fi
+    done
+
+    sed -n '/\[libraries\]/,$p' "$CSV" | tail -n +3 | while IFS=',' read -r fid fq lanes ftype ; do
+        [ -n "$fid" ] || continue
+        [ -d "$fq" ] || { echo "fake-cellranger: not a directory: $fq" >&2 ; exit 1 ; }
+        if ! compgen -G "${fq}/${fid}_S*_L*_R1_001.fastq.gz" > /dev/null \
+           && ! compgen -G "${fq}/*/${fid}_S*_L*_R1_001.fastq.gz" > /dev/null ; then
+            echo "fake-cellranger: no reads for fastq_id '$fid' under $fq" >&2 ; exit 1
+        fi
+        case "$ftype" in
+            "Gene Expression"|"Antibody Capture"|"CRISPR Guide Capture"|"Multiplexing Capture"|VDJ|VDJ-T|VDJ-B) : ;;
+            *) echo "fake-cellranger: unexpected feature_types '$ftype'" >&2 ; exit 1 ;;
+        esac
+    done
+
+    mkdir -p "${ID}/outs/per_sample_outs/${ID}/count"
+    touch "${ID}/outs/per_sample_outs/${ID}/web_summary.html"
+    # the real long form: one metric per row, Grouped By is what makes a
+    # metric repeat within a section
+    m="${ID}/outs/per_sample_outs/${ID}/metrics_summary.csv"
+    printf 'Category,Library Type,Grouped By,Group Name,Metric Name,Metric Value\n' > "$m"
+    printf 'Cells,Gene Expression,,,Cells,"12,196"\n'                              >> "$m"
+    printf 'Cells,Gene Expression,,,Mean reads per cell,"30,927"\n'                >> "$m"
+    printf 'Cells,Antibody Capture,,,Cells,"12,196"\n'                             >> "$m"
+    printf 'Cells,VDJ T,,,Cells,"5,934"\n'                                         >> "$m"
+    printf 'Library,Gene Expression,Physical library ID,GEX_1,Number of reads,"377,190,354"\n' >> "$m"
+    printf 'Library,Gene Expression,Fastq ID,SC2622_%s_G5,Number of reads,"377,190,354"\n' "$ID" >> "$m"
+    printf 'Library,Gene Expression,,,Estimated number of cells,"12,196"\n'        >> "$m"
+    printf 'Library,Gene Expression,,,Valid barcodes,96.3%%\n'                      >> "$m"
+    printf 'Library,Antibody Capture,,,Estimated number of cells,"12,196"\n'       >> "$m"
+    printf 'Library,VDJ T,,,Estimated number of cells,"5,934"\n'                   >> "$m"
+    touch "${ID}/outs/per_sample_outs/${ID}/count/sample_filtered_feature_bc_matrix.h5"
+
+    # real cellranger writes the bam only when create-bam is true
+    if grep -qx 'create-bam,true' "$CSV" ; then
+        touch "${ID}/outs/per_sample_outs/${ID}/count/sample_alignments.bam"
+        touch "${ID}/outs/per_sample_outs/${ID}/count/sample_alignments.bam.bai"
+    fi
+
+    if [ -n "${CI_CAPTURE:-}" ] ; then
+        mkdir -p "$CI_CAPTURE"
+        printf '%s\n' "$@" > "${CI_CAPTURE}/${ID}.command.txt"
+        cp "$CSV"            "${CI_CAPTURE}/${ID}.multi_config.csv"
+    fi
+    exit 0
+fi
+
 # arc form: --libraries csv instead of --fastqs / --sample. Check every row
 # points at reads that exist, which is what real cellranger-arc would fail on.
 if [ -n "$LIBRARIES" ] ; then

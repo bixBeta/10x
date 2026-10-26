@@ -73,6 +73,39 @@ CK2,${JS5a},Chromatin Accessibility
 CK2,${JS5b},Chromatin Accessibility
 EOF
 
+# multi: one label carrying GEX + Antibody Capture + VDJ, the shape of a real
+# cellranger multi submission. All three live in one Project dir, so each row
+# names its fastq_id.
+MULTIP="${HERE}/Illumina/multirun/Unaligned/Project_10489440"
+mkdir -p "$MULTIP"
+make_delivery "$MULTIP" "SC2622_EW1_G5_HL978_10489440_25GHMFLT4"  1 2 > /dev/null
+make_delivery "$MULTIP" "SC2622_EW1_CSP_HL978_10489440_25GHMFLT4" 2 2 > /dev/null
+make_delivery "$MULTIP" "SC2622_EW1_VDJ_HL978_10489440_25GHMFLT4" 3 5 > /dev/null
+
+# the feature barcode panel the [feature] section points at
+cat > "${HERE}/feature_ref.csv" <<EOF
+id,name,read,pattern,sequence,feature_type
+CD3,CD3,R2,^NNNNNNNNNN(BC)NNNNNNNNN,AACAAGACCCTTGAG,Antibody Capture
+EOF
+
+# a vdj reference, checked the same way a gex one is
+mkdir -p "${HERE}/vdjref"
+echo '{"genomes": ["testvdj"]}' > "${HERE}/vdjref/reference.json"
+
+cat > "${HERE}/sample-sheet-multi.csv" <<EOF
+label,fastqs,sample,lanes,library_type
+EW1,${MULTIP},SC2622_EW1_G5_HL978_10489440_25GHMFLT4,2,Gene Expression
+EW1,${MULTIP},SC2622_EW1_CSP_HL978_10489440_25GHMFLT4,2,Antibody Capture
+EW1,${MULTIP},SC2622_EW1_VDJ_HL978_10489440_25GHMFLT4,5,VDJ
+EOF
+
+# the same sheet without a VDJ reference available: must be rejected
+cat > "${HERE}/sample-sheet-multi-novdjref.csv" <<EOF
+label,fastqs,sample,library_type
+EW1,${MULTIP},SC2622_EW1_G5_HL978_10489440_25GHMFLT4,Gene Expression
+EW1,${MULTIP},SC2622_EW1_VDJ_HL978_10489440_25GHMFLT4,VDJ
+EOF
+
 # the sample column filled in with a file name stem, illumina tail and all -
 # the error should name the prefix meant rather than only report nothing found
 cat > "${HERE}/sample-sheet-filestem.csv" <<EOF

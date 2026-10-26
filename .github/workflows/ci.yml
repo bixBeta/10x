@@ -5,7 +5,7 @@ name: ci
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, multi ]
   pull_request:
     branches: [ main, dev ]
   workflow_dispatch:
@@ -75,6 +75,14 @@ jobs:
           echo "exit=$?"
           head -40 /tmp/v2lint.txt
           exit 0
+
+      - name: Workflow file is well formed
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pyyaml
+          # a column 0 heredoc inside a "run: |" block ends the yaml scalar,
+          # which has silently broken this file before
+          python3 test/check_ci_yaml.py .github/workflows/ci.yml
 
       - name: Module escapes survive groovy
         run: |
@@ -462,6 +470,123 @@ jobs:
             echo "expected failure: Gene Expression in atac mode"; exit 1
           fi
           echo "wrong library_type rejected"
+
+      - name: multi builds the config and runs
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-multi
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_MULTI web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --mode multi \
+            --sheet test/sample-sheet-multi.csv \
+            --ref   "$PWD/test/ref" \
+            --vdjref "$PWD/test/vdjref" \
+            --featureref "$PWD/test/feature_ref.csv" \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          echo "--- EW1_multi_config.csv ---"
+          cat "$CI_CAPTURE/EW1.multi_config.csv"
+
+          # every section the sheet implies, and nothing it does not
+          grep -qx '\[gene-expression\]' "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx '\[vdj\]'             "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx '\[feature\]'         "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx "reference,$PWD/test/ref"            "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx "reference,$PWD/test/vdjref"         "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -qx "reference,$PWD/test/feature_ref.csv" "$CI_CAPTURE/EW1.multi_config.csv"
+
+          # the libraries table, with the lanes column carried through
+          grep -qx 'fastq_id,fastqs,lanes,feature_types' "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -q ',2,Gene Expression$'  "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -q ',2,Antibody Capture$' "$CI_CAPTURE/EW1.multi_config.csv"
+          grep -q ',5,VDJ$'              "$CI_CAPTURE/EW1.multi_config.csv"
+          # gene expression first, then feature barcode, VDJ last - the order a
+          # hand written config uses. Alphabetical would invert the first two.
+          order=$(sed -n '/\[libraries\]/,$p' "$CI_CAPTURE/EW1.multi_config.csv" \
+                    | tail -n +3 | awk -F, '{print $NF}' | paste -sd'|' -)
+          test "$order" = "Gene Expression|Antibody Capture|VDJ" \
+            || { echo "library order is '$order'"; exit 1; }
+          test "$(grep -c ',.*,.*,' "$CI_CAPTURE/EW1.multi_config.csv")" -eq 4   # header + 3
+
+          echo "--- command built for EW1 ---"
+          cat "$CI_CAPTURE/EW1.command.txt"
+          grep -qx -- 'multi'                              "$CI_CAPTURE/EW1.command.txt"
+          grep -qx -- '--id=EW1'                           "$CI_CAPTURE/EW1.command.txt"
+          grep -qx -- '--csv=EW1_multi_config.csv'         "$CI_CAPTURE/EW1.command.txt"
+          # multi takes everything through the config, never these
+          if grep -qE -- '--(transcriptome|fastqs|sample|libraries|reference)=' "$CI_CAPTURE/EW1.command.txt" ; then
+            echo "multi command must not carry per library flags"; exit 1
+          fi
+
+          # outputs, and the config kept beside them
+          test -L CELLRANGER_MULTI/EW1/outs
+          test -f CELLRANGER_MULTI/EW1/EW1_multi_config.csv
+          test -L web_summary_htmls/EW1_EW1_web_summary.html || { ls -l web_summary_htmls; exit 1; }
+          test -L summary_metrics/EW1_EW1_metrics_summary.csv || { ls -l summary_metrics; exit 1; }
+          test -e filtered_counts/EW1/EW1_EW1_filtered_feature_bc_matrix.h5
+
+          # one stacked table for the run, header once, label on every row
+          echo "--- ALL_metrics_summary.csv ---"
+          cat summary_metrics/ALL_metrics_summary.csv
+          head -1 summary_metrics/ALL_metrics_summary.csv | grep -q '^label,'
+          grep -q '^EW1_EW1,' summary_metrics/ALL_metrics_summary.csv
+
+          # the long form csv pivoted into one table per ( Category, Library Type )
+          for part in cells_gene_expression cells_antibody_capture cells_vdj_t \
+                      library_gene_expression library_antibody_capture library_vdj_t ; do
+            grep -A1 "cellranger_multi_metrics_${part}:" assets/multiqc_config.yaml | grep -q 'order:' \
+              || { echo "multi section $part has no order in the multiqc config"; exit 1; }
+          done
+
+          python3 -m pip install --quiet pyyaml
+          python3 test/check_mqc_yaml.py summary_metrics/cellranger_multi_metrics_*_mqc.json \
+            | tee /tmp/mqcmulti.txt
+          grep -q "Cell Ranger multi: Cells - Gene Expression"   /tmp/mqcmulti.txt
+          grep -q "Cell Ranger multi: Library - Gene Expression" /tmp/mqcmulti.txt
+          # shape assertions live in a script: a column 0 heredoc inside a
+          # "run: |" block ends the yaml scalar, which has broken this file before
+          python3 test/check_multi_metrics.py summary_metrics
+
+          # createBam defaults to false, so nothing is collected. The bams/
+          # directory itself may exist: nextflow creates a publishDir target
+          # even when its pattern matches nothing, so assert on the contents.
+          if ls bams/*_alignments.bam* 2>/dev/null | grep -q . ; then
+            echo "bams published with createBam false"; ls -l bams; exit 1
+          fi
+          echo "multi OK"
+
+      - name: multi collects the bams when createBam is true
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-multibam
+        run: |
+          set -euo pipefail
+          rm -rf CELLRANGER_MULTI bams "$CI_CAPTURE"
+          nextflow run . -c test/ci.config --mode multi \
+            --sheet test/sample-sheet-multi.csv \
+            --ref   "$PWD/test/ref" \
+            --vdjref "$PWD/test/vdjref" \
+            --featureref "$PWD/test/feature_ref.csv" \
+            --createBam true \
+            --crpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          grep -qx 'create-bam,true' "$CI_CAPTURE/EW1.multi_config.csv"
+          test -L bams/EW1_EW1_alignments.bam     || { ls -lR bams 2>/dev/null; exit 1; }
+          test -L bams/EW1_EW1_alignments.bam.bai || { ls -lR bams; exit 1; }
+          # a link into work/, not a copy
+          readlink bams/EW1_EW1_alignments.bam | grep -q '/work/'
+          echo "multi bams OK"
+
+      - name: multi rejects a missing vdj reference
+        run: |
+          set -euo pipefail
+          out=$(nextflow run . -c test/ci.config --mode multi \
+                  --sheet test/sample-sheet-multi-novdjref.csv --ref "$PWD/test/ref" \
+                  --crpath "$PWD/test/fake-cellranger" --multiqc false \
+                  --localcores 2 --localmem 4 2>&1) && { echo "expected failure"; exit 1; }
+          echo "$out" | grep -q 'has a VDJ library but no --vdjref' || { echo "$out" | tail -20; exit 1; }
+          echo "missing vdjref rejected"
 
       - name: Ambiguous Project dir is rejected
         run: |

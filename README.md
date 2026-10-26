@@ -16,6 +16,7 @@
 | `gex` | `cellranger count` | working |
 | `arc` | `cellranger-arc count` | working |
 | `atac` | `cellranger-atac count` | working |
+| `multi` | `cellranger multi` | working — GEX + CITE-seq + VDJ |
 | — | `cellranger aggr` | working, for multi-library labels (gex) |
 | — | `multiqc` | working, one report per run |
 
@@ -79,6 +80,24 @@ Multiome and scATAC join the same directories. Both report `summary.csv` rather
 than `metrics_summary.csv`, with their own columns, so each gets its own
 `ALL_summary.csv`; `CELLRANGER_ARC/<label>/` also keeps the generated
 `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the aggregated result.
+
+`--mode multi` mirrors `outs` the same way under `CELLRANGER_MULTI/<label>/`,
+keeps the generated config beside it, and links the per-sample results out of
+`outs/per_sample_outs/` as `<label>_<sample>_web_summary.html` and
+`<label>_<sample>_metrics_summary.csv` — multi writes one directory per sample,
+which is one for a plain run and several when multiplexed.
+
+With `--createBam true` it also gathers every sample's alignments into one
+place:
+
+```
+bams/   EW1_SC2622_EW1_SC2622_alignments.bam(.bai)   -> work/../per_sample_outs/.../count/
+        EW2_SC2622_EW2_SC2622_alignments.bam(.bai)
+```
+
+Links, not copies. The per-run `unassigned_alignments.bam` and the VDJ contig
+BAMs are left where Cell Ranger put them, reachable through the `outs` mirror.
+With `createBam` false there is nothing to collect and no `bams/` directory.
 
 For scATAC, `filtered_counts/<label>/` holds what Signac and ArchR actually
 read — the peak matrix, the fragments file with its index, and `singlecell.csv`:
@@ -149,6 +168,12 @@ is not comparable across libraries.
 The web summaries themselves are published for a human to open but deliberately
 not handed to MultiQC — nothing would parse them, and the `cellranger_arc`
 module trying and failing would take the whole report down.
+
+For `--mode multi` the per-sample web summaries are passed to MultiQC as they
+are. MultiQC's `cellranger` module matches on `"subcommand":"count"`, so a
+`multi` summary is not parsed by it today and the report carries the Software
+Versions section rather than per-sample tables. The same web-summary parsing
+used for scATAC would fix that; it is not wired up yet.
 
 `--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
 `--multiqcversion` selects the image.
@@ -292,13 +317,91 @@ different flow cell has a *different* prefix. Both are collected and passed as
 
 </details>
 
+### Multi (`--mode multi`)
+
+One label carries every library of one sample — Gene Expression plus any of
+Antibody Capture (CITE-seq), CRISPR and VDJ — and `cellranger multi` counts
+them together. **You supply only the sheet**; the multi config CSV is generated
+per label from it.
+
+```csv
+label,fastqs,sample,lanes,library_type
+EW1,/local/.../Project_104***,SC2622_EW1_G5_***,2,Gene Expression
+EW1,/local/.../Project_104***,SC2622_EW1_CSP_***,2,Antibody Capture
+EW1,/local/.../Project_104***,SC2622_EW1_VDJ_***,5,VDJ
+```
+
+becomes `EW1_multi_config.csv`:
+
+```
+[gene-expression]
+reference,<--ref>
+create-bam,<--createBam>
+
+[vdj]
+reference,<--vdjref>
+
+[feature]
+reference,<--featureref>
+
+[libraries]
+fastq_id,fastqs,lanes,feature_types
+SC2622_EW1_G5_***,/local/.../Project_104***,2,Gene Expression
+SC2622_EW1_CSP_***,/local/.../Project_104***,2,Antibody Capture
+SC2622_EW1_VDJ_***,/local/.../Project_104***,5,VDJ
+```
+
+A copy is kept at `CELLRANGER_MULTI/<label>/<label>_multi_config.csv`, next to
+the results, so it can be diffed against a hand-written one.
+
+`lanes` is **optional and multi-only**. It restricts the library to those flow
+cell lanes; leave it out and `any` is used. Several lanes are separated with a
+**pipe**, since the comma is the CSV delimiter — `1|2|3` — and a range works
+too, `1-4`.
+
+Libraries are written in assay order: Gene Expression, then the feature barcode
+assays, then VDJ. That is how a hand-written config reads, and keeping to it
+means the generated file diffs cleanly against one.
+
+`[vdj]` and `[feature]` are written **only when a library needs them**, since an
+empty section is an error in Cell Ranger rather than a no-op. So `--vdjref` and
+`--featureref` are required exactly when the sheet carries a library that needs
+one, and the run stops at launch naming the label and the assay if it is
+missing.
+
+<details>
+<summary>Which options reach the generated config</summary>
+
+Only these. Everything else in the `multi` config spec is **not** expressible
+yet, and a param the pipeline does not declare is silently ignored:
+
+| section | options |
+|---|---|
+| `[gene-expression]` | `reference`, `create-bam`, `chemistry`, `expect-cells`, `force-cells`, `include-introns`, `r1-length`, `r2-length` |
+| `[vdj]` | `reference` |
+| `[feature]` | `reference` |
+| `[libraries]` | `fastq_id,fastqs,lanes,feature_types` |
+
+Not supported: `probe-set`, `target-panel`, `no-secondary`,
+`check-library-compatibility`, `cmo-set`, `min-assignment-confidence`,
+`inner-enrichment-primers`, and the whole `[samples]` section — so CMO/hashtag
+multiplexing cannot be expressed.
+
+Watch `--r1length`: it defaults to **28**, so leaving it out writes
+`r1-length,28` into `[gene-expression]`. Set it to `0` to omit the line, which
+is usually what you want for 5' GEX.
+
+</details>
+
 ## References
 
 `--listRefs` prints the full map. Keys point at the build rather than the
 species directory, and the same key picks the right build for the mode.
 
 `atac` uses the `arc` column: `cellranger-atac --reference` takes an ATAC or an
-ARC reference.
+ARC reference. `multi` uses the `gex` column for `--ref`, plus its own
+`--vdjref` (`Human`, `Mouse`) for the `[vdj]` section — VDJ references are a
+different build, so they are a separate key rather than derived from `--ref`.
 
 | key | gex | arc / atac |
 |---|---|---|
@@ -334,6 +437,7 @@ Images currently built, in `--sifdir`
 
 | image | select with |
 |---|---|
+| `cellranger-8.0.1.sif` | `--crversion 8.0.1` |
 | `cellranger-9.0.1.sif` | `--crversion 9.0.1` *(default)* |
 | `cellranger-10.1.0.sif` | `--crversion 10.1.0` |
 | `cellranger-arc-2.2.0.sif` | `--arcversion 2.2.0` *(default)* |
@@ -347,6 +451,10 @@ first — see below.
 
 The image or binary is checked before any work starts, and the error lists what
 is actually present.
+
+Results are not comparable across Cell Ranger majors, so a project started on
+one version stays on it — `crversion` in `params.yaml` is the only thing to
+change, and the guard below catches a mismatch before any counting.
 
 ### Which version am I really running?
 
@@ -403,14 +511,16 @@ Notes for the build host:
 |---|---|---|
 | `--id` | `BRC_ID` | BRC Project ID |
 | `--sheet` | `sample-sheet.csv` | |
-| `--mode` | `gex` | `gex`, `atac`, `arc` |
+| `--mode` | `gex` | `gex`, `atac`, `arc`, `multi` |
 | `--ref` | — | key from `--listRefs`, or a full path |
 | `--chemistry` | `auto` | atac: omitted unless set; `ARC-v1` for a multiome ATAC library |
 | `--expectCells` / `--forceCells` | — | |
-| `--createBam` | `false` | |
+| `--createBam` | `false` | multi also collects the per-sample BAMs into `bams/` |
 | `--introns` | tool default | `--include-introns` |
-| `--r1length` | `28` | `--r1-length`; pass `0` to omit |
+| `--r1length` | `28` | `--r1-length`; pass `0` to omit. multi writes it into the config |
 | `--r2length` | — | `--r2-length` |
+| `--vdjref` | — | multi only; VDJ reference, key or path. Required for a VDJ library |
+| `--featureref` | — | multi only; the feature barcode panel csv. Required for Antibody Capture / CRISPR |
 | `--peaks` | — | atac only; a BED to use instead of calling peaks |
 | `--dimReduce` | tool default | atac only; `lsa`, `plsa` or `pca` |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
@@ -419,7 +529,7 @@ Notes for the build host:
 | `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
-| `--crversion` / `--arcversion` / `--atacversion` | `9.0.1` / `2.2.0` / `2.2.0` | selects the image or install |
+| `--crversion` / `--arcversion` / `--atacversion` | `9.0.1` / `2.2.0` / `2.2.0` | selects the image or install. `--crversion` drives `gex` **and** `multi` |
 | `--multiqc` | `true` | build the MultiQC report |
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
@@ -467,6 +577,7 @@ modules/cellranger/main.nf         cellranger count
 modules/cellrangeraggr/main.nf     cellranger aggr
 modules/cellrangerarc/main.nf      cellranger-arc count
 modules/cellrangeratac/main.nf     cellranger-atac count
+modules/cellrangermulti/main.nf    cellranger multi, incl. the config it generates
 modules/websummary/main.nf         web_summary.html -> multiqc custom content
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries
