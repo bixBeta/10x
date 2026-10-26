@@ -3,11 +3,11 @@
 [![ci](https://github.com/bixBeta/10x/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bixBeta/10x/actions/workflows/ci.yml)
 [![Nextflow](https://img.shields.io/badge/nextflow%20DSL2-25.04.1-23aa62.svg)](https://www.nextflow.io/)
 [![Singularity](https://img.shields.io/badge/container-Singularity-1d355c.svg)](https://sylabs.io/singularity/)
-[![cellranger 10.1.0](https://img.shields.io/badge/cellranger-10.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
-[![cellranger 9.0.1](https://img.shields.io/badge/cellranger-9.0.1-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
+[![cellranger](https://img.shields.io/badge/cellranger-8.0.1%20%7C%209.0.1%20%7C%2010.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger-arc 2.2.0](https://img.shields.io/badge/cellranger--arc-2.2.0-6f42c1.svg)](https://www.10xgenomics.com/support/software/cell-ranger-arc)
 [![cellranger-atac 2.2.0](https://img.shields.io/badge/cellranger--atac-2.2.0-e8710a.svg)](https://www.10xgenomics.com/support/software/cell-ranger-atac)
 [![multiqc 1.35](https://img.shields.io/badge/multiqc-1.35-1a9e77.svg)](https://multiqc.info/)
+[![modes](https://img.shields.io/badge/modes-gex%20%7C%20atac%20%7C%20arc%20%7C%20multi-555.svg)](#)
 
 <hr>
 
