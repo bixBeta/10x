@@ -950,7 +950,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
-          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
 
           # the stub block first: it is what -stub-run exercises, and nothing
           # else would catch a typo in it
@@ -1030,7 +1030,7 @@ jobs:
       - name: spatial rejects a sheet it cannot run
         run: |
           set -euo pipefail
-          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
           run_spatial () {
             nextflow run . -c test/ci.config --mode spatial \
               --ref "$PWD/test/ref" --imagedir test/visium_images \
@@ -1069,7 +1069,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
-          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
 
           # the slide serial was lost, so a keyword stands in for it and there is
           # no capture area. --slide / --area and --unknown-slide are mutually
@@ -1097,7 +1097,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf SPACERANGER multiqc web_summary_htmls summary_metrics "$CI_CAPTURE"
-          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
 
           nextflow run . -c test/ci.config --mode spatial \
             --sheet test/sample-sheet-spatial.csv --ref "$PWD/test/ref" \
@@ -1158,7 +1158,7 @@ jobs:
             || { echo "YF2 row wrong - an unmatched image must stay EMPTY"; exit 1; }
 
           # and the sheet it wrote is one the pipeline really takes
-          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
           nextflow run . -c test/ci.config --mode spatial \
             --sheet test/sheet-made-spatial.csv --ref "$PWD/test/ref" \
             --imagedir test/visium_images \

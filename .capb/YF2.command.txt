@@ -1,0 +1,11 @@
+count
+--id=YF2
+--localcores=2
+--localmem=4
+--transcriptome=/w/test/ref
+--fastqs=/w/test/Illumina/spatialrun/Unaligned/Project_10490358/Sample_SC2630_YF2_V-G3_B1_10490358_23NY35LT3_L1
+--sample=SC2630_YF2_V-G3_B1_10490358_23NY35LT3
+--create-bam=false
+--slide=H1-DYCH77W
+--area=B1
+--image=Visium_B1_10052026_YSF.tif

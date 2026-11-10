@@ -33,7 +33,7 @@ ref:           Canine
 #                     10.1.0    cellranger-10.1.0.sif
 #   cellranger-arc    2.2.0     cellranger-arc-2.2.0.sif
 #   cellranger-atac   2.2.0     cellranger-atac-2.2.0.sif
-#   spaceranger       4.0.1     spaceranger-4.0.1.sif
+#   spaceranger       4.1.0     spaceranger-4.1.0.sif
 #   multiqc           1.35      multiqc-1.35.sif
 #
 # Swap by changing the version below - nothing else needs to change. Anything
@@ -48,7 +48,7 @@ sifdir:        /local/workdir/10x_analysis/singularity-sifs
 crversion:     9.0.1                  # gex, multi : 8.0.1 | 9.0.1 | 10.1.0
 arcversion:    2.2.0                  # arc  : 2.2.0
 atacversion:   2.2.0                  # atac : 2.2.0
-srversion:     4.0.1                  # spatial : 4.0.1
+srversion:     4.1.0                  # spatial : 4.0.1 | 4.1.0
 
 # The tool is asked its own version inside the image and the run stops if it
 # disagrees with the above. Only turn this off for an unlabelled image.

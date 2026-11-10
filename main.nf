@@ -321,7 +321,7 @@ Args:
     * --crversion      : Cell Ranger version; default <9.0.1>
     * --arcversion     : cellranger-arc version; default <2.2.0>
     * --atacversion    : cellranger-atac version; default <2.2.0>
-    * --srversion      : spaceranger version; default <4.0.1>
+    * --srversion      : spaceranger version; default <4.1.0>
     * --engine         : 'singularity' runs a locally built .sif; default <singularity>
                        : 'local'       runs an install under --programs
 
@@ -340,7 +340,7 @@ Args:
                          containers/build-sif.sh cellranger      10.1.0 <tarball> <sifdir>
                          containers/build-sif.sh cellranger-arc  2.2.0  <tarball> <sifdir>
                          containers/build-sif.sh cellranger-atac 2.2.0  <tarball> <sifdir>
-                         containers/build-sif.sh spaceranger     4.0.1  <tarball> <sifdir>
+                         containers/build-sif.sh spaceranger     4.1.0  <tarball> <sifdir>
 
       local:
         * --programs   : Where the installs live; default </programs>

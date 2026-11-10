@@ -9,7 +9,7 @@
 #
 #  <source> is a 10x tarball, which is built from scratch:
 #    ./containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/singularity
-#    ./containers/build-sif.sh spaceranger    4.0.1 ~/spaceranger-4.0.1.tar.gz    /local/workdir/singularity
+#    ./containers/build-sif.sh spaceranger    4.1.0 ~/spaceranger-4.1.0.tar.gz    /local/workdir/singularity
 #
 #  or an existing image, which is just converted:
 #    ./containers/build-sif.sh cellranger 9.0.1 docker://<registry>/cellranger:9.0.1 /local/workdir/singularity

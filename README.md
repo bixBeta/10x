@@ -6,7 +6,7 @@
 [![cellranger](https://img.shields.io/badge/cellranger-8.0.1%20%7C%209.0.1%20%7C%2010.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger-arc 2.2.0](https://img.shields.io/badge/cellranger--arc-2.2.0-6f42c1.svg)](https://www.10xgenomics.com/support/software/cell-ranger-arc)
 [![cellranger-atac 2.2.0](https://img.shields.io/badge/cellranger--atac-2.2.0-e8710a.svg)](https://www.10xgenomics.com/support/software/cell-ranger-atac)
-[![spaceranger 4.0.1](https://img.shields.io/badge/spaceranger-4.0.1-0b7285.svg)](https://www.10xgenomics.com/support/software/space-ranger)
+[![spaceranger 4.1.0](https://img.shields.io/badge/spaceranger-4.1.0-0b7285.svg)](https://www.10xgenomics.com/support/software/space-ranger)
 [![multiqc 1.35](https://img.shields.io/badge/multiqc-1.35-1a9e77.svg)](https://multiqc.info/)
 [![modes](https://img.shields.io/badge/modes-gex%20%7C%20atac%20%7C%20arc%20%7C%20multi%20%7C%20spatial-555.svg)](#)
 
@@ -594,7 +594,7 @@ Images currently built, in `--sifdir`
 the Space Ranger tarball:
 
 ```bash
-bash containers/build-sif.sh spaceranger 4.0.1 spaceranger-4.0.1.tar.gz /local/workdir/10x_analysis/singularity-sifs
+bash containers/build-sif.sh spaceranger 4.1.0 spaceranger-4.1.0.tar.gz /local/workdir/10x_analysis/singularity-sifs
 ```
 
 `--mode atac` wants `cellranger-atac-<atacversion>.sif`, which has to be built
@@ -690,7 +690,7 @@ Notes for the build host:
 | `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
-| `--crversion` / `--arcversion` / `--atacversion` / `--srversion` | `9.0.1` / `2.2.0` / `2.2.0` / `4.0.1` | selects the image or install. `--crversion` drives `gex` **and** `multi` |
+| `--crversion` / `--arcversion` / `--atacversion` / `--srversion` | `9.0.1` / `2.2.0` / `2.2.0` / `4.1.0` | selects the image or install. `--crversion` drives `gex` **and** `multi` |
 | `--multiqc` | `true` | build the MultiQC report |
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |

@@ -219,7 +219,7 @@ if [ "${FAKE_TOOL:-cellranger}" = "spaceranger" ] ; then
     # probe based column names a CytAssist run reports
     m="${ID}/outs/metrics_summary.csv"
     printf 'Sample ID,Number of Spots Under Tissue,Mean Reads per Spot,Median Genes per Spot,Median UMI Counts per Spot,Number of Reads,Valid Barcodes,Sequencing Saturation,Fraction Reads in Spots Under Tissue,Reads Mapped Confidently to Probe Set,Total Genes Detected,Q30 Bases in Barcode,Pipeline Version\n' > "$m"
-    printf '%s,"2,412","48,221","1,884","3,905","116,308,992",0.9712,0.4418,0.8903,0.8217,"18,443",0.9615,spaceranger-4.0.1\n' "$ID" >> "$m"
+    printf '%s,"2,412","48,221","1,884","3,905","116,308,992",0.9712,0.4418,0.8903,0.8217,"18,443",0.9615,spaceranger-4.1.0\n' "$ID" >> "$m"
 
     touch "${ID}/outs/filtered_feature_bc_matrix.h5"
     touch "${ID}/outs/cloupe.cloupe"
