@@ -193,6 +193,48 @@ anything. Multiome and aggregation mirror theirs the same way under
 Everything published is a link into `work/`, so keep `work/` until you are
 done, or dereference when archiving (`cp -rL`, `rsync -L`, `tar -h`).
 
+## Building the sheet
+
+`scripts/make-sheet.py` writes one for you from the delivery. It derives what
+the naming convention supports and leaves everything else **empty with a note**,
+rather than guessing — a sheet that is wrong in a plausible way costs far more
+than one with a blank to fill.
+
+```bash
+scripts/make-sheet.py spatial /local/Illumina/DRV/<run>/Unaligned/Project_104*** \
+    --imagedir visium_images -n          # -n prints it instead of writing
+```
+
+```
+sample-sheet.csv: 16 row(s), 2 label(s): YF1, YF2
+  YF1        8 delivery dir(s)  slide=H1-DYCH77W  area=A1  cytaimage=CAVG..._A1_yf1.tif
+  YF2        8 delivery dir(s)  slide=H1-DYCH77W  area=B1  cytaimage=CAVG..._B1_yf2.tif
+
+not placed, under visium_images:
+  GE_1_VisiumHD_20261105JZS.jpg
+  GE_2_VisiumHD_20261105JZS.jpg
+```
+
+| it derives | from |
+|---|---|
+| `label` | field 1 of the fastq prefix — `SC2630_YF1_...` → `YF1`. `--label-field` moves it, `--rename OLD=NEW` fixes one up |
+| `fastqs` | the directory the R1 files were found in, one row each. A capture area delivered as eight per-lane directories becomes eight rows with the label repeated — which is how the pipeline pools them |
+| `library` | added only when one label really covers several **fastq prefixes**, i.e. separate GEM wells, which is the one case that column exists for |
+| `area` | a field of the prefix shaped like a capture area: `..._V-G3_A1_...` → `A1` |
+| `slide` | read off the CytAssist image file name, which is where 10x puts it: `..._H1-DYCH77W_A1_yf1.tif` → `H1-DYCH77W`. `--slide` overrides |
+| `cytaimage` | an image under `--imagedir` carrying **both** a slide serial and this row's area |
+| `image` / `alignment` | a further image, or a `.json`, carrying this row's label or area |
+
+Give it the `Project_*` directory, the `Sample_*` directories, or any fastq
+inside one — the same three things the sheet itself accepts. Nothing is copied
+or renamed; the paths written are the directories exactly as found.
+
+Modes: `gex`, `atac`, `spatial`. `arc` and `multi` are not there yet — both need
+to know *which assay* each library is, and a wrong guess silently counts the
+wrong reads together, so that wants its own pass. Adding a mode means a
+subclass with its column names and a `fill()`; the discovery, labelling and
+reporting are shared. See the docstring.
+
 ## Sample sheet
 
 Most runs need two columns:
@@ -414,9 +456,13 @@ YF2,/local/.../Sample_SC2630_YF2_V-G3_B1_104***_23N***_L1,H1-DYCH77W,B1,CAVG1024
 ```
 
 ```bash
+scripts/make-sheet.py spatial /local/.../Project_104*** --imagedir visium_images
 nextflow run bixBeta/10x -r dev --mode spatial --ref Canine \
   --sheet sample-sheet.csv --slide H1-DYCH77W
 ```
+
+`scripts/make-sheet.py` derives the label, the area, the slide serial and the
+CytAssist image from the delivery — see [Building the sheet](#building-the-sheet).
 
 **Images live in one folder.** A bare file name in the sheet is looked up under
 `--imagedir`, which defaults to `visium_images` next to where you launch — so
@@ -697,6 +743,7 @@ modules/websummary/main.nf         web_summary.html -> multiqc custom content
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries
 containers/build-sif.sh            build a .sif locally
+scripts/make-sheet.py              generate a sample-sheet.csv from a delivery
 test/                              stub inputs and a stand-in binary
 ```
 

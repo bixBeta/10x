@@ -30,6 +30,8 @@ test/ref/
 test/refparent/
 test/vdjref/
 test/visium_images/
+test/emptyimages/
+test/mksheet.notes
 test/feature_ref.csv
 test/sample-sheet*.csv
 test/sheet-*.csv

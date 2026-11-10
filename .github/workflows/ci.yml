@@ -1132,3 +1132,75 @@ jobs:
           fi
           grep -A1 'spaceranger_metrics_table:' assets/multiqc_config.yaml | grep -q 'order:'
           echo "spatial multiqc OK"
+
+      - name: make-sheet.py writes a sheet the pipeline accepts
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-mksheet
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+
+          # spatial: the slide serial and the capture area are DERIVED, the
+          # first off the CytAssist image name and the second off the fastq
+          # prefix, so this asserts the derivation and not just the file shape
+          python3 scripts/make-sheet.py spatial \
+            test/Illumina/spatialrun/Unaligned/Project_10490358 \
+            --imagedir test/visium_images -o test/sheet-made-spatial.csv --force
+          cat test/sheet-made-spatial.csv
+
+          head -1 test/sheet-made-spatial.csv | grep -qx 'label,fastqs,slide,area,cytaimage,image,alignment'
+          # YF1 was delivered over two lanes, so its label repeats: 2 + 1 + header
+          test "$(wc -l < test/sheet-made-spatial.csv)" -eq 4
+          grep -c '^YF1,' test/sheet-made-spatial.csv | grep -qx 2
+          grep -q '^YF1,.*,H1-DYCH77W,A1,CAVG10243R1_H1-DYCH77W_A1_yf1.tif,' test/sheet-made-spatial.csv \
+            || { echo "slide / area / cytaimage not derived for YF1"; exit 1; }
+          grep -q '^YF2,.*,H1-DYCH77W,B1,CAVG10243R1_H1-DYCH77W_B1_yf2.tif,,$' test/sheet-made-spatial.csv \
+            || { echo "YF2 row wrong - an unmatched image must stay EMPTY"; exit 1; }
+
+          # and the sheet it wrote is one the pipeline really takes
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sheet-made-spatial.csv --ref "$PWD/test/ref" \
+            --imagedir test/visium_images \
+            --srpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+          grep -qx -- '--slide=H1-DYCH77W' "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--area=A1'          "$CI_CAPTURE/YF1.command.txt"
+          grep -q  -- '--fastqs=.*_L1,.*_L2' "$CI_CAPTURE/YF1.command.txt"
+
+          # an imagedir with nothing matching must leave the columns EMPTY and
+          # say so, never invent a file name
+          mkdir -p test/emptyimages
+          python3 scripts/make-sheet.py spatial \
+            test/Illumina/spatialrun/Unaligned/Project_10490358 \
+            --imagedir test/emptyimages -o test/sheet-made-blank.csv --force 2> test/mksheet.notes
+          grep -q 'no slide serial found' test/mksheet.notes
+          grep -qx 'YF2,.*,,B1,' test/sheet-made-blank.csv \
+            || { cat test/sheet-made-blank.csv; echo "blank cells expected"; exit 1; }
+          # one note per label, not one per row: YF1 spans two lanes
+          test "$(grep -c 'YF1: no slide serial found' test/mksheet.notes)" -eq 1
+
+          # gex: two GEM wells of one sample, which is what the library column
+          # is for. It appears only because --rename collapsed them.
+          python3 scripts/make-sheet.py gex \
+            test/Illumina/run1/Unaligned/Project_10488923 \
+            --rename JS6A=JS6 --rename JS6B=JS6 -o test/sheet-made-gex.csv --force
+          cat test/sheet-made-gex.csv
+          head -1 test/sheet-made-gex.csv | grep -qx 'label,fastqs,library'
+          grep -q '^JS6,.*JS6A.*,JS6A$' test/sheet-made-gex.csv
+          grep -q '^JS6,.*JS6B.*,JS6B$' test/sheet-made-gex.csv
+          # a label that is one library leaves it empty, which the pipeline
+          # reads as "library = label"
+          grep -q '^JS4,[^,]*,$' test/sheet-made-gex.csv
+
+          python3 scripts/make-sheet.py atac \
+            test/Illumina/run1/Unaligned/Project_10488923 -o test/sheet-made-atac.csv --force
+          head -1 test/sheet-made-atac.csv | grep -qx 'label,fastqs,library_type'
+          grep -q 'Chromatin Accessibility' test/sheet-made-atac.csv
+
+          # it must not clobber a sheet already sitting there
+          if python3 scripts/make-sheet.py gex \
+               test/Illumina/run1/Unaligned/Project_10488923 -o test/sheet-made-gex.csv ; then
+            echo "expected failure: --out exists and --force was not given"; exit 1
+          fi
+          echo "make-sheet OK"
