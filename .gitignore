@@ -1,5 +1,8 @@
 # Nextflow
 work/
+# CI_CAPTURE scratch from a local container run
+.cap*/
+.nxf/
 .nextflow/
 .nextflow.log*
 .nextflow.pid
