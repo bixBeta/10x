@@ -18,8 +18,12 @@ WHAT IS DERIVED, AND FROM WHAT
     label        field 1 of the fastq prefix, i.e. SC2630_YF1_... -> YF1
                  ( --label-field moves it, --rename fixes one up )
     fastqs       the directory the R1 files were found in
-    area         a field of the prefix that looks like a capture area:
-                 SC2630_YF1_V-G3_A1_... -> A1
+    area         the field after the slide serial in the CytAssist image name,
+                 which is where the instrument records it:
+                 ..._H1-B68749K_D1_B1.tif -> D1
+                 Falling back to an area shaped field of the fastq prefix, which
+                 is only a GUESS: there that field is a sample name and the two
+                 can differ. A disagreement is always reported.
     slide        read off the CytAssist image file name, which is where 10x
                  puts it: ..._H1-DYCH77W_A1_gingiva3.tif -> H1-DYCH77W
                  ( --slide overrides, for a run whose images are not named so )
@@ -227,6 +231,24 @@ class ImageDir(object):
     def slide_of(self, f):
         return self._slide_in(f)
 
+    def area_of(self, f):
+        """The capture area a CytAssist name carries, or None.
+
+        The instrument writes <instrument>_<date>_<time>_<date>_<time>_<slide>_
+        <area>_<label>, so the area is the field straight AFTER the serial. That
+        is the authoritative record of which area the section sat in - unlike a
+        fastq prefix, where an A1 / B1 looking field is a sample NAME.
+        """
+        toks = tokens(f.name)
+        for i, t in enumerate(toks[:-1]):
+            if SLIDE_RE.match(t.upper()) and AREA_RE.match(toks[i + 1].upper()):
+                return toks[i + 1].upper()
+        return None
+
+    def with_serial(self):
+        return [f for f in self.files
+                if f.suffix.lower() in IMAGE_EXT and self._slide_in(f)]
+
     def unused(self):
         return [f.name for f in self.files if f.name not in self.used]
 
@@ -296,15 +318,36 @@ class Spatial(Mode):
                                  "file names do not carry it")
 
     def fill(self, row, d, args, images, note):
+        # only a guess at this point: an A1 / B1 shaped field of a fastq prefix
+        # is a sample NAME, and the CytAssist image below overrides it
         if d.area:
             row["area"] = d.area
-        else:
-            note("%s: no capture area in '%s' - fill in area by hand (A1..D1)."
-                 % (d.label, d.prefix))
 
         hits = images.cytaimage(d.area) if d.area else []
+
+        # no area to match on, so fall back to the label: a CytAssist image
+        # carries the section label as its last field
+        if not hits:
+            hits = [f for f in images.with_serial()
+                    if images._matches(f, d.label)]
         if len(hits) == 1:
             row["cytaimage"] = images.take(hits[0])
+
+            # The instrument's own record of the capture area wins over the
+            # guess from the fastq prefix. This is not cosmetic: telling
+            # spaceranger the wrong area maps every spot to the wrong physical
+            # position, and both values are valid areas, so nothing downstream
+            # would catch it.
+            shot = images.area_of(hits[0])
+            if shot and row["area"] and shot != row["area"]:
+                note("%s: the fastq prefix says area %s, the CytAssist image "
+                     "says %s (%s). The instrument writes the area into that "
+                     "name, so %s is used - in the prefix that field is a "
+                     "sample name, not an area. CHECK THIS."
+                     % (d.label, row["area"], shot, hits[0].name, shot))
+            if shot:
+                row["area"] = shot
+
             serial = images.slide_of(hits[0])
             if args.slide:
                 row["slide"] = args.slide
@@ -317,10 +360,14 @@ class Spatial(Mode):
             note("%s: %d images carry area %s (%s) - cannot choose, fill "
                  "cytaimage in by hand."
                  % (d.label, len(hits), d.area, ", ".join(h.name for h in hits)))
-        elif d.area:
-            note("%s: no image under %s carries a slide serial and area %s - "
-                 "fill cytaimage in by hand."
-                 % (d.label, images.directory, d.area))
+        else:
+            note("%s: no image under %s carries a slide serial and either area "
+                 "%s or the label - fill cytaimage in by hand."
+                 % (d.label, images.directory, d.area or "<none>"))
+
+        if not row["area"]:
+            note("%s: no capture area found, in '%s' or in a CytAssist image "
+                 "name - fill area in by hand (A1..D1)." % (d.label, d.prefix))
 
         if not row.get("slide"):
             row["slide"] = args.slide or ""

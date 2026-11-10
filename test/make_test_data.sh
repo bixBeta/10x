@@ -124,11 +124,15 @@ YF2=$(  make_delivery "$SPATP" "SC2630_YF2_V-G3_B1_10490358_23NY35LT3" 11 1 )
 
 # the images the lab delivers alongside the reads, dropped in one folder. The
 # sheet names them, --imagedir says where to look.
+# CytAssist writes <instrument>_<date>_<time>_<date>_<time>_<slide>_<area>_<label>,
+# so these carry the real names. YF2's is the case that matters: its fastq prefix
+# says B1 and the instrument says the section sat in D1, because in the prefix
+# that field is a SAMPLE NAME. Taken from the real SC2630 delivery.
 IMG="${HERE}/visium_images"
 rm -rf "$IMG"
 mkdir -p "$IMG"
-: > "${IMG}/CAVG10243R1_H1-DYCH77W_A1_yf1.tif"
-: > "${IMG}/CAVG10243R1_H1-DYCH77W_B1_yf2.tif"
+: > "${IMG}/CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif"
+: > "${IMG}/CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif"
 : > "${IMG}/YF1_microscope.jpg"
 printf 'probe_id,gene_id\nENSCAFP0001,ENSCAFG0001\n' > "${IMG}/probe_set.csv"
 printf '{}\n' > "${IMG}/YF1_alignment.json"
@@ -137,9 +141,9 @@ printf '{}\n' > "${IMG}/YF1_alignment.json"
 # one slide, which is the usual case.
 cat > "${HERE}/sample-sheet-spatial.csv" <<EOF
 label,fastqs,slide,area,cytaimage,image,probeset,alignment
-YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_H1-DYCH77W_A1_yf1.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json
-YF1,${YF1b},H1-DYCH77W,A1,CAVG10243R1_H1-DYCH77W_A1_yf1.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json
-YF2,${YF2},,B1,CAVG10243R1_H1-DYCH77W_B1_yf2.tif,,,
+YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json
+YF1,${YF1b},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json
+YF2,${YF2},,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,,,
 EOF
 
 # no image column filled in at all: spaceranger has nothing to align to, so the
@@ -152,14 +156,14 @@ EOF
 # a slide serial with no capture area
 cat > "${HERE}/sample-sheet-spatial-noarea.csv" <<EOF
 label,fastqs,slide,cytaimage
-YF2,${YF2},H1-DYCH77W,CAVG10243R1_H1-DYCH77W_B1_yf2.tif
+YF2,${YF2},H1-DYCH77W,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif
 EOF
 
 # the serial was lost, so one of spaceranger's keywords is used instead and the
 # capture area has to be left out
 cat > "${HERE}/sample-sheet-spatial-unknown.csv" <<EOF
 label,fastqs,slide,cytaimage
-YF2,${YF2},visium-2,CAVG10243R1_H1-DYCH77W_B1_yf2.tif
+YF2,${YF2},visium-2,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif
 EOF
 
 cat > "${HERE}/sample-sheet.csv" <<EOF
