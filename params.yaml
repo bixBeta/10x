@@ -13,7 +13,7 @@
 # ---- project ----------------------------------------------------------------
 id:            BRC_ID                 # project id, appears in the banner
 sheet:         sample-sheet.csv       # see --help for the columns
-mode:          gex                    # gex | atac | arc | multi
+mode:          gex                    # gex | atac | arc | multi | spatial
 
 # ---- reference --------------------------------------------------------------
 # A key from --listRefs, or a full path to a directory holding reference.json.
@@ -24,6 +24,7 @@ ref:           Canine
 # Images are built locally with containers/build-sif.sh and picked up as
 # <sifdir>/cellranger-<crversion>.sif  /  cellranger-arc-<arcversion>.sif
 #                                      /  cellranger-atac-<atacversion>.sif
+#                                      /  spaceranger-<srversion>.sif
 #
 # Built and ready to use:
 #
@@ -32,6 +33,7 @@ ref:           Canine
 #                     10.1.0    cellranger-10.1.0.sif
 #   cellranger-arc    2.2.0     cellranger-arc-2.2.0.sif
 #   cellranger-atac   2.2.0     cellranger-atac-2.2.0.sif
+#   spaceranger       4.0.1     spaceranger-4.0.1.sif
 #   multiqc           1.35      multiqc-1.35.sif
 #
 # Swap by changing the version below - nothing else needs to change. Anything
@@ -46,6 +48,7 @@ sifdir:        /local/workdir/10x_analysis/singularity-sifs
 crversion:     9.0.1                  # gex, multi : 8.0.1 | 9.0.1 | 10.1.0
 arcversion:    2.2.0                  # arc  : 2.2.0
 atacversion:   2.2.0                  # atac : 2.2.0
+srversion:     4.0.1                  # spatial : 4.0.1
 
 # The tool is asked its own version inside the image and the run stops if it
 # disagrees with the above. Only turn this off for an unlabelled image.
@@ -92,6 +95,20 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # chemistry:   ARC-v1                 # count the ATAC half of a multiome run
 # peaks:       /path/to/peaks.bed     # skip peak calling and use these
 # dimReduce:   lsa                    # lsa ( tool default ) | plsa | pca
+#
+# spatial only. The slide, the capture area and an image of the tissue are per
+# capture area, so they live in the sheet - see --help. These are the run wide
+# settings and the per row defaults.
+# srsif:       /path/to/a/specific/spaceranger.sif
+# imagedir:    visium_images          # where a bare image name in the sheet is found
+# slide:       H1-DYCH77W             # default for rows with no slide column
+# probeset:    /path/to/probe_set.csv # default for rows with no probeset column
+# nosecondary: true                   # skip clustering / t-SNE / UMAP
+#
+# NOT r1length / r2length: a Visium read is not a gex read, so these are their
+# own params and are left out of the command unless set.
+# spatialR1length: 43                 # CytAssist libraries carry a 43 nt R1
+# spatialR2length: 100
 #
 # multi only: cellranger multi needs a reference per assay in the sheet.
 # ref stays the gex transcriptome; these two are required only when the sheet

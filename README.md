@@ -6,8 +6,9 @@
 [![cellranger](https://img.shields.io/badge/cellranger-8.0.1%20%7C%209.0.1%20%7C%2010.1.0-blue.svg)](https://www.10xgenomics.com/support/software/cell-ranger)
 [![cellranger-arc 2.2.0](https://img.shields.io/badge/cellranger--arc-2.2.0-6f42c1.svg)](https://www.10xgenomics.com/support/software/cell-ranger-arc)
 [![cellranger-atac 2.2.0](https://img.shields.io/badge/cellranger--atac-2.2.0-e8710a.svg)](https://www.10xgenomics.com/support/software/cell-ranger-atac)
+[![spaceranger 4.0.1](https://img.shields.io/badge/spaceranger-4.0.1-0b7285.svg)](https://www.10xgenomics.com/support/software/space-ranger)
 [![multiqc 1.35](https://img.shields.io/badge/multiqc-1.35-1a9e77.svg)](https://multiqc.info/)
-[![modes](https://img.shields.io/badge/modes-gex%20%7C%20atac%20%7C%20arc%20%7C%20multi-555.svg)](#)
+[![modes](https://img.shields.io/badge/modes-gex%20%7C%20atac%20%7C%20arc%20%7C%20multi%20%7C%20spatial-555.svg)](#)
 
 <hr>
 
@@ -17,6 +18,7 @@
 | `arc` | `cellranger-arc count` | working |
 | `atac` | `cellranger-atac count` | working |
 | `multi` | `cellranger multi` | working — GEX + CITE-seq + VDJ |
+| `spatial` | `spaceranger count` | working — Visium / Visium HD |
 | — | `cellranger aggr` | working, for multi-library labels (gex) |
 | — | `multiqc` | working, one report per run |
 
@@ -80,6 +82,10 @@ Multiome and scATAC join the same directories. Both report `summary.csv` rather
 than `metrics_summary.csv`, with their own columns, so each gets its own
 `ALL_summary.csv`; `CELLRANGER_ARC/<label>/` also keeps the generated
 `libraries.csv`, and `CELLRANGER_AGGR/<label>/` the aggregated result.
+
+`--mode spatial` joins them too, under `SPACERANGER/<label>/`. Space Ranger
+reports a wide `metrics_summary.csv` like `gex` does, so its rows stack into
+`ALL_metrics_summary.csv` the same way.
 
 `--mode multi` mirrors `outs` the same way under `CELLRANGER_MULTI/<label>/`,
 keeps the generated config beside it, and links the per-sample results out of
@@ -210,6 +216,7 @@ The remaining columns are optional, one per situation:
 | `library` | one sample was run in two GEM wells |
 | `sample` | the `fastqs` path holds more than one sample |
 | `library_type` | multiome, to mark the GEX and ATAC halves |
+| `slide` / `area` / `cytaimage` … | spatial; see [Visium](#visium---mode-spatial) |
 
 ### The same library sequenced twice
 
@@ -393,6 +400,101 @@ is usually what you want for 5' GEX.
 
 </details>
 
+### Visium (`--mode spatial`)
+
+One row per **capture area**. `spaceranger count` takes `--fastqs` / `--sample`
+exactly like the `gex` path; what makes spatial different is that it needs two
+things the reads cannot supply — **which slide and area** the section sat on,
+and an **image** of the tissue to align the spots to.
+
+```csv
+label,fastqs,slide,area,cytaimage,image
+YF1,/local/.../Sample_SC2630_YF1_V-G3_A1_104***_23N***_L1,H1-DYCH77W,A1,CAVG10243R1_..._A1_yf1.tif,GE_1_20260212JZS.jpg
+YF2,/local/.../Sample_SC2630_YF2_V-G3_B1_104***_23N***_L1,H1-DYCH77W,B1,CAVG10243R1_..._B1_yf2.tif,GE_2_20260212JZS.jpg
+```
+
+```bash
+nextflow run bixBeta/10x -r dev --mode spatial --ref Canine \
+  --sheet sample-sheet.csv --slide H1-DYCH77W
+```
+
+**Images live in one folder.** A bare file name in the sheet is looked up under
+`--imagedir`, which defaults to `visium_images` next to where you launch — so
+drop the TIFFs the lab sent in there and the sheet only has to name them. A full
+path works too.
+
+```
+<project>/
+  sample-sheet.csv
+  params.yaml
+  visium_images/
+    CAVG10243R1_2026-02-12_..._H1-DYCH77W_A1_yf1.tif
+    GE_1_20260212JZS.jpg
+```
+
+| column | what it is |
+|---|---|
+| `slide` | the serial printed on the slide, e.g. `H1-DYCH77W`. One slide normally carries a whole run, so `--slide` sets it for every row and only `area` has to be in the sheet |
+| `area` | the capture area the section sits in: `A1`, `B1`, `C1`, `D1` |
+| `cytaimage` | the TIFF the CytAssist instrument wrote — CytAssist assays, Visium HD included |
+| `image` | a brightfield H&E image |
+| `darkimage` | a fluorescence image |
+| `colorizedimage` | a composite colour fluorescence image |
+| `probeset` | `--probe-set`, for a probe-based (FFPE / CytAssist) assay needing a panel other than the reference's |
+| `alignment` | `--loupe-alignment`, the JSON Loupe Browser exports after a manual fiducial alignment |
+| `slidefile` | `--slidefile`, the slide layout `.gpr`. Space Ranger normally fetches the layout from 10x, so this is what an offline node needs |
+
+At least one image column is **required** and the sheet is rejected without one,
+along with a slide that has no area, or an image name `--imagedir` does not hold
+— all before anything is submitted, since an image typo should not surface an
+hour into a run.
+
+If the slide serial was lost, put one of Space Ranger's keywords in `slide`
+instead — `visium-1`, `visium-2`, `visium-2-large` — and leave `area` out. That
+becomes `--unknown-slide`, which is mutually exclusive with `--slide` / `--area`.
+
+A capture area sequenced over several lanes or runs: **repeat the label**, exactly
+as in `gex` mode. Spatial deliveries often arrive one directory per lane, which
+is what that looks like:
+
+```csv
+label,fastqs,area,cytaimage
+YF1,/local/.../Sample_SC2630_YF1_V-G3_A1_104***_23N***_L1,A1,..._A1_yf1.tif
+YF1,/local/.../Sample_SC2630_YF1_V-G3_A1_104***_23N***_L2,A1,..._A1_yf1.tif
+```
+
+The `slide`, `area` and image columns must **match** on every row of a label —
+they describe one physical section — and a label whose rows disagree is rejected
+rather than having one of them picked at random.
+
+> **`--r1length` does not apply here.** A Visium read is not a gex read: a
+> CytAssist library carries a 43 nt R1, not 28. Reusing the gex flag would mean
+> its default silently trimmed every spatial read, so this mode has its own
+> `--spatialR1length` / `--spatialR2length` and passes **neither** unless asked,
+> leaving Space Ranger to read the length itself. Passing `--r1length` in
+> `spatial` mode is an error rather than a no-op.
+
+`filtered_counts/<label>/` holds what Seurat's `Load10X_Spatial` and squidpy
+read — the matrix is no use without the `spatial/` folder beside it:
+
+```
+SPACERANGER/YF1/outs    -> work/../outs
+filtered_counts/YF1/    filtered_feature_bc_matrix.h5
+                        spatial/   tissue_positions.csv
+                                   scalefactors_json.json
+                                   tissue_hires_image.png ...
+                        cloupe.cloupe
+```
+
+Visium HD writes no top-level matrix — every bin size gets its own directory
+with its own `spatial/` folder — so `binned_outputs/` is linked there instead.
+
+MultiQC ships no `spaceranger` module, so the web summaries are published for a
+human to open but deliberately not handed over; the pipeline renders the metrics
+itself as the **Space Ranger (Visium)** section, the same arrangement scATAC
+uses. The knee plots and spatial figures are not lifted out of the web summary
+yet — the treatment `modules/websummary` gives scATAC would work here too.
+
 ## References
 
 `--listRefs` prints the full map. Keys point at the build rather than the
@@ -442,11 +544,19 @@ Images currently built, in `--sifdir`
 | `cellranger-10.1.0.sif` | `--crversion 10.1.0` |
 | `cellranger-arc-2.2.0.sif` | `--arcversion 2.2.0` *(default)* |
 
+`--mode spatial` wants `spaceranger-<srversion>.sif`, built the same way from
+the Space Ranger tarball:
+
+```bash
+bash containers/build-sif.sh spaceranger 4.0.1 spaceranger-4.0.1.tar.gz /local/workdir/10x_analysis/singularity-sifs
+```
+
 `--mode atac` wants `cellranger-atac-<atacversion>.sif`, which has to be built
 first — see below.
 
-`--crsif` / `--arcsif` / `--atacsif` name an image directly. `--crpath` /
-`--arcpath` / `--atacpath` name a binary and force `local` for that tool.
+`--crsif` / `--arcsif` / `--atacsif` / `--srsif` name an image directly.
+`--crpath` / `--arcpath` / `--atacpath` / `--srpath` name a binary and force
+`local` for that tool.
 `--listPrograms` shows what is installed under `--programs`.
 
 The image or binary is checked before any work starts, and the error lists what
@@ -502,7 +612,7 @@ Notes for the build host:
 - Sites that auto-bind paths need those mount points inside the image. The
   default `/workdir /local /programs` is created during the build; adjust with
   `SIF_BINDS="/workdir /local /fs"`.
-- `cellranger` and `cellranger-atac` keep their executable at the top of the
+- `cellranger`, `cellranger-atac` and `spaceranger` keep their executable at the top of the
   install dir, `cellranger-arc` in `bin/`. All are put on `PATH`.
 
 ## Params
@@ -511,7 +621,7 @@ Notes for the build host:
 |---|---|---|
 | `--id` | `BRC_ID` | BRC Project ID |
 | `--sheet` | `sample-sheet.csv` | |
-| `--mode` | `gex` | `gex`, `atac`, `arc`, `multi` |
+| `--mode` | `gex` | `gex`, `atac`, `arc`, `multi`, `spatial` |
 | `--ref` | — | key from `--listRefs`, or a full path |
 | `--chemistry` | `auto` | atac: omitted unless set; `ARC-v1` for a multiome ATAC library |
 | `--expectCells` / `--forceCells` | — | |
@@ -523,22 +633,26 @@ Notes for the build host:
 | `--featureref` | — | multi only; the feature barcode panel csv. Required for Antibody Capture / CRISPR |
 | `--peaks` | — | atac only; a BED to use instead of calling peaks |
 | `--dimReduce` | tool default | atac only; `lsa`, `plsa` or `pca` |
+| `--imagedir` | `visium_images` | spatial only; where a bare image name in the sheet is looked up, relative to the launch dir |
+| `--slide` | — | spatial only; slide serial for every row that gives none |
+| `--probeset` | — | spatial only; `--probe-set` panel csv for every row that gives none |
+| `--nosecondary` | `false` | spatial only; skip clustering / t-SNE / UMAP |
+| `--spatialR1length` / `--spatialR2length` | — | spatial only; `--r1-length` / `--r2-length`. **Not** `--r1length` — see below |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `128` | `--localmem` in GB **and** the memory reserved |
 | `--maxforks` | `1` | concurrent tasks **per process** |
 | `--aggr` | `true` | run `cellranger aggr` for multi-library labels |
 | `--normalize` | `mapped` | aggr depth normalisation; or `none` |
 | `--engine` | `singularity` | or `local` |
-| `--crversion` / `--arcversion` / `--atacversion` | `9.0.1` / `2.2.0` / `2.2.0` | selects the image or install. `--crversion` drives `gex` **and** `multi` |
+| `--crversion` / `--arcversion` / `--atacversion` / `--srversion` | `9.0.1` / `2.2.0` / `2.2.0` / `4.0.1` | selects the image or install. `--crversion` drives `gex` **and** `multi` |
 | `--multiqc` | `true` | build the MultiQC report |
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
 | `--multiqcconfig` | shipped | a custom MultiQC config |
-| `--mqcpoints` | `200` | bins per series in the rendered curves; `0` plots every raw point |
 | `--sifdir` | see above | where the `.sif` files live |
-| `--crsif` / `--arcsif` / `--atacsif` | — | a specific image |
+| `--crsif` / `--arcsif` / `--atacsif` / `--srsif` | — | a specific image |
 | `--programs` | `/programs` | where native installs live |
-| `--crpath` / `--arcpath` / `--atacpath` | — | a specific binary; forces `--engine local` |
+| `--crpath` / `--arcpath` / `--atacpath` / `--srpath` | — | a specific binary; forces `--engine local` |
 | `--checkversion` | `true` | verify the tool's own version |
 
 The command built per library:
@@ -578,6 +692,7 @@ modules/cellrangeraggr/main.nf     cellranger aggr
 modules/cellrangerarc/main.nf      cellranger-arc count
 modules/cellrangeratac/main.nf     cellranger-atac count
 modules/cellrangermulti/main.nf    cellranger multi, incl. the config it generates
+modules/spaceranger/main.nf        spaceranger count
 modules/websummary/main.nf         web_summary.html -> multiqc custom content
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries

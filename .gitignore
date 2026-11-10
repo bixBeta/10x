@@ -12,6 +12,7 @@ work/
 /CELLRANGER_ATAC/
 /CELLRANGER_MULTI/
 /CELLRANGER_AGGR/
+/SPACERANGER/
 /filtered_counts/
 /multiqc/
 /web_summary_htmls/
@@ -28,6 +29,7 @@ test/fastq/
 test/ref/
 test/refparent/
 test/vdjref/
+test/visium_images/
 test/feature_ref.csv
 test/sample-sheet*.csv
 test/sheet-*.csv

@@ -943,3 +943,192 @@ jobs:
 
           echo "atac websummary OK"
           echo "atac multiqc OK"
+
+      - name: Visium (spatial) counts per capture area
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-spatial
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+
+          # the stub block first: it is what -stub-run exercises, and nothing
+          # else would catch a typo in it
+          nextflow run . -stub-run -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial.csv --ref test/ref \
+            --imagedir test/visium_images --slide H1-DYCH77W --multiqc false
+          test -L SPACERANGER/YF1/outs
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts
+
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial.csv \
+            --ref   "$PWD/test/ref" \
+            --imagedir test/visium_images \
+            --slide H1-DYCH77W \
+            --srpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          echo "--- command built for YF1 ---"
+          cat "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- 'count'                          "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--id=YF1'                       "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- "--transcriptome=$PWD/test/ref"  "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--slide=H1-DYCH77W'             "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--area=A1'                      "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--create-bam=false'             "$CI_CAPTURE/YF1.command.txt"
+
+          # the images are STAGED, so the flags carry bare names in the task dir
+          # and the files are really there - which is what fake-cellranger checks
+          grep -qx -- '--cytaimage=CAVG10243R1_H1-DYCH77W_A1_yf1.tif' "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--image=YF1_microscope.jpg'                    "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--probe-set=probe_set.csv'                     "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--loupe-alignment=YF1_alignment.json'          "$CI_CAPTURE/YF1.command.txt"
+
+          # spatial takes --transcriptome, never the arc / atac flags
+          if grep -qE -- '--(reference|libraries)=' "$CI_CAPTURE/YF1.command.txt" ; then
+            echo "spatial command must not carry arc / atac only flags"; exit 1
+          fi
+          # gex's --r1length default of 28 must not leak in: spaceranger reads
+          # the length itself unless --spatialR1length asked for something
+          if grep -qE -- '--r[12]-length' "$CI_CAPTURE/YF1.command.txt" ; then
+            echo "spatial must not pass a read length it was not given"; exit 1
+          fi
+
+          # YF1 was delivered one dir per lane: both dirs, one prefix
+          grep -q -- '--fastqs=.*_L1,.*_L2' "$CI_CAPTURE/YF1.command.txt" \
+            || { echo "lane dirs not pooled"; exit 1; }
+          grep -qx -- '--sample=SC2630_YF1_V-G3_A1_10490358_23NY35LT3' "$CI_CAPTURE/YF1.command.txt"
+
+          # YF2 gave no slide of its own, so --slide covered it
+          grep -qx -- '--slide=H1-DYCH77W' "$CI_CAPTURE/YF2.command.txt" \
+            || { cat "$CI_CAPTURE/YF2.command.txt"; echo "--slide default not applied"; exit 1; }
+          grep -qx -- '--area=B1' "$CI_CAPTURE/YF2.command.txt"
+          # and only the one image column it filled in
+          grep -qx -- '--cytaimage=CAVG10243R1_H1-DYCH77W_B1_yf2.tif' "$CI_CAPTURE/YF2.command.txt"
+          if grep -qE -- '--(image|probe-set|loupe-alignment)=' "$CI_CAPTURE/YF2.command.txt" ; then
+            cat "$CI_CAPTURE/YF2.command.txt"
+            echo "empty sheet columns must not become flags"; exit 1
+          fi
+
+          # the outs mirror, and a Seurat ready folder per capture area:
+          # the matrix is no use without spatial/ beside it
+          test -L SPACERANGER/YF1/outs
+          for f in filtered_feature_bc_matrix.h5 cloupe.cloupe spatial/tissue_positions.csv spatial/scalefactors_json.json ; do
+            test -e "filtered_counts/YF1/$f" || { ls -lR filtered_counts; echo "missing $f"; exit 1; }
+          done
+          test -L web_summary_htmls/YF1_web_summary.html || { ls -l web_summary_htmls; exit 1; }
+          test -L summary_metrics/YF1_metrics_summary.csv || { ls -l summary_metrics;   exit 1; }
+
+          # spaceranger reports a wide metrics_summary.csv, so the rows stack
+          echo "--- ALL_metrics_summary.csv ---"
+          cat summary_metrics/ALL_metrics_summary.csv
+          test "$(wc -l < summary_metrics/ALL_metrics_summary.csv)" -eq 3
+          head -1 summary_metrics/ALL_metrics_summary.csv | grep -q '^label,'
+          grep -q 'Number of Spots Under Tissue' summary_metrics/ALL_metrics_summary.csv
+          echo "spatial OK"
+
+      - name: spatial rejects a sheet it cannot run
+        run: |
+          set -euo pipefail
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+          run_spatial () {
+            nextflow run . -c test/ci.config --mode spatial \
+              --ref "$PWD/test/ref" --imagedir test/visium_images \
+              --srpath "$PWD/test/fake-cellranger" --multiqc false \
+              --localcores 2 --localmem 4 "$@"
+          }
+
+          # spaceranger aligns the spots to a picture of the tissue, so a sheet
+          # with no image cannot run at all
+          if run_spatial --sheet test/sample-sheet-spatial-noimage.csv ; then
+            echo "expected failure: no image column filled in"; exit 1
+          fi
+
+          # a real slide serial names a capture area on that slide
+          if run_spatial --sheet test/sample-sheet-spatial-noarea.csv ; then
+            echo "expected failure: slide with no area"; exit 1
+          fi
+
+          # an image the sheet names but --imagedir does not hold
+          if run_spatial --sheet test/sample-sheet-spatial.csv --slide H1-DYCH77W \
+               --imagedir test/nowhere ; then
+            echo "expected failure: imagedir holds no images"; exit 1
+          fi
+
+          # --r1length is the gex flag. Silently ignoring it would trim nothing
+          # while the user believed it trimmed to 43, so it is an error here.
+          if run_spatial --sheet test/sample-sheet-spatial.csv --slide H1-DYCH77W \
+               --r1length 43 ; then
+            echo "expected failure: --r1length in spatial mode"; exit 1
+          fi
+          echo "spatial rejections OK"
+
+      - name: spatial unknown-slide and its own read lengths
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-spatial2
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+
+          # the slide serial was lost, so a keyword stands in for it and there is
+          # no capture area. --slide / --area and --unknown-slide are mutually
+          # exclusive flags, which fake-cellranger enforces.
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial-unknown.csv \
+            --ref "$PWD/test/ref" --imagedir test/visium_images \
+            --srpath "$PWD/test/fake-cellranger" --multiqc false \
+            --spatialR1length 43 --spatialR2length 100 --nosecondary true \
+            --localcores 2 --localmem 4
+
+          cat "$CI_CAPTURE/YF2.command.txt"
+          grep -qx -- '--unknown-slide=visium-2' "$CI_CAPTURE/YF2.command.txt"
+          if grep -qE -- '^--(slide|area)=' "$CI_CAPTURE/YF2.command.txt" ; then
+            echo "--unknown-slide must replace --slide / --area"; exit 1
+          fi
+          grep -qx -- '--r1-length=43'  "$CI_CAPTURE/YF2.command.txt"
+          grep -qx -- '--r2-length=100' "$CI_CAPTURE/YF2.command.txt"
+          grep -qx -- '--nosecondary'   "$CI_CAPTURE/YF2.command.txt"
+          echo "unknown-slide OK"
+
+      - name: MultiQC covers the spatial path too
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-mqcspatial
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER multiqc web_summary_htmls summary_metrics "$CI_CAPTURE"
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.0.1
+
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial.csv --ref "$PWD/test/ref" \
+            --imagedir test/visium_images --slide H1-DYCH77W \
+            --srpath "$PWD/test/fake-cellranger" \
+            --multiqcpath "$PWD/test/fake-multiqc" \
+            --id BRC_SPATIAL --localcores 2 --localmem 4
+
+          test -f multiqc/BRC_SPATIAL_multiqc_report.html || { ls -lR multiqc; exit 1; }
+          grep -q 'spaceranger' "$CI_CAPTURE/multiqc.versions.yml" \
+            || { cat "$CI_CAPTURE/multiqc.versions.yml"; echo "spaceranger version missing from the table"; exit 1; }
+
+          # MultiQC ships no spaceranger module, so the pipeline renders the
+          # metrics itself and the web summaries are deliberately NOT handed over
+          cat "$CI_CAPTURE/multiqc.custom.txt"
+          grep -qx -- 'spaceranger_metrics_table_mqc.json' "$CI_CAPTURE/multiqc.custom.txt" \
+            || { echo "the spatial metrics section did not reach multiqc"; exit 1; }
+          if grep -q 'web_summary' "$CI_CAPTURE/multiqc.inputs.txt" ; then
+            cat "$CI_CAPTURE/multiqc.inputs.txt"
+            echo "spatial web summaries must not be fed to multiqc: no module parses them"; exit 1
+          fi
+          test -L web_summary_htmls/YF1_web_summary.html
+
+          python3 -m pip install --quiet pyyaml
+          python3 test/check_mqc_yaml.py \
+            summary_metrics/spaceranger_metrics_table_mqc.json \
+            pipeline_info/software_versions_mqc.yml | tee /tmp/mqcspatial.txt
+          grep -q "Space Ranger (Visium)" /tmp/mqcspatial.txt || { echo "no spatial section"; exit 1; }
+          grep -q 'Number of Spots Under Tissue' summary_metrics/spaceranger_metrics_table_mqc.json
+          if grep -q 'Pipeline Version' summary_metrics/spaceranger_metrics_table_mqc.json ; then
+            echo "Pipeline Version should not be in the spatial table"; exit 1
+          fi
+          grep -A1 'spaceranger_metrics_table:' assets/multiqc_config.yaml | grep -q 'order:'
+          echo "spatial multiqc OK"

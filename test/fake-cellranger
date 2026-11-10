@@ -20,6 +20,7 @@ fi
 
 SUBCMD="${1:-}"
 ID="" ; FASTQS="" ; SAMPLES="" ; LIBRARIES="" ; CSV=""
+TRANSCRIPTOME="" ; SLIDE="" ; AREA="" ; UNKNOWN_SLIDE="" ; IMAGES=""
 for a in "$@" ; do
     case "$a" in
         --id=*)         ID="${a#--id=}"               ;;
@@ -27,6 +28,16 @@ for a in "$@" ; do
         --sample=*)     SAMPLES="${a#--sample=}"      ;;
         --libraries=*)  LIBRARIES="${a#--libraries=}" ;;
         --csv=*)        CSV="${a#--csv=}"             ;;
+        --transcriptome=*) TRANSCRIPTOME="${a#--transcriptome=}" ;;
+        --slide=*)         SLIDE="${a#--slide=}"               ;;
+        --area=*)          AREA="${a#--area=}"                 ;;
+        --unknown-slide=*) UNKNOWN_SLIDE="${a#--unknown-slide=}" ;;
+        # spaceranger takes the image under one of four flags depending on how
+        # the section was photographed; the files themselves are checked below
+        --cytaimage=*|--image=*|--darkimage=*|--colorizedimage=*)
+            IMAGES="${IMAGES} ${a#*=}" ;;
+        --probe-set=*|--loupe-alignment=*|--slidefile=*)
+            [ -f "${a#*=}" ] || { echo "fake-cellranger: no such file for ${a%%=*}: ${a#*=}" >&2 ; exit 1 ; } ;;
     esac
 done
 
@@ -182,6 +193,50 @@ done
 
 mkdir -p "${ID}/outs"
 touch "${ID}/outs/web_summary.html"
+
+# spaceranger takes --fastqs / --sample like gex, plus the two things only
+# spatial has: which slide and capture area the section sat on, and an image to
+# align the spots to. Missing either is what real spaceranger refuses on, so
+# this is where the module's flag building is actually tested.
+if [ "${FAKE_TOOL:-cellranger}" = "spaceranger" ] ; then
+    [ -n "$TRANSCRIPTOME" ] || { echo "fake-cellranger: spaceranger needs --transcriptome" >&2 ; exit 1 ; }
+    [ -d "$TRANSCRIPTOME" ] || { echo "fake-cellranger: no such transcriptome: $TRANSCRIPTOME" >&2 ; exit 1 ; }
+
+    if [ -n "$UNKNOWN_SLIDE" ] ; then
+        [ -z "$SLIDE" ] && [ -z "$AREA" ] \
+            || { echo "fake-cellranger: --unknown-slide cannot be combined with --slide / --area" >&2 ; exit 1 ; }
+    else
+        [ -n "$SLIDE" ] || { echo "fake-cellranger: spaceranger needs --slide or --unknown-slide" >&2 ; exit 1 ; }
+        [ -n "$AREA" ]  || { echo "fake-cellranger: --slide needs --area" >&2 ; exit 1 ; }
+    fi
+
+    [ -n "${IMAGES// /}" ] || { echo "fake-cellranger: spaceranger needs an image" >&2 ; exit 1 ; }
+    for img in $IMAGES ; do
+        [ -f "$img" ] || { echo "fake-cellranger: image not staged: $img" >&2 ; ls -la >&2 ; exit 1 ; }
+    done
+
+    # a wide metrics_summary.csv, like gex and unlike arc / atac, with the
+    # probe based column names a CytAssist run reports
+    m="${ID}/outs/metrics_summary.csv"
+    printf 'Sample ID,Number of Spots Under Tissue,Mean Reads per Spot,Median Genes per Spot,Median UMI Counts per Spot,Number of Reads,Valid Barcodes,Sequencing Saturation,Fraction Reads in Spots Under Tissue,Reads Mapped Confidently to Probe Set,Total Genes Detected,Q30 Bases in Barcode,Pipeline Version\n' > "$m"
+    printf '%s,"2,412","48,221","1,884","3,905","116,308,992",0.9712,0.4418,0.8903,0.8217,"18,443",0.9615,spaceranger-4.0.1\n' "$ID" >> "$m"
+
+    touch "${ID}/outs/filtered_feature_bc_matrix.h5"
+    touch "${ID}/outs/cloupe.cloupe"
+    # what Seurat's Load10X_Spatial and squidpy actually read
+    mkdir -p "${ID}/outs/spatial"
+    printf 'barcode,in_tissue,array_row,array_col,pxl_row_in_fullres,pxl_col_in_fullres\n' \
+        > "${ID}/outs/spatial/tissue_positions.csv"
+    printf '{"spot_diameter_fullres": 123.4, "tissue_hires_scalef": 0.2}\n' \
+        > "${ID}/outs/spatial/scalefactors_json.json"
+    touch "${ID}/outs/spatial/tissue_hires_image.png" "${ID}/outs/spatial/aligned_fiducials.jpg"
+
+    if [ -n "${CI_CAPTURE:-}" ] ; then
+        mkdir -p "$CI_CAPTURE"
+        printf '%s\n' "$@" > "${CI_CAPTURE}/${ID}.command.txt"
+    fi
+    exit 0
+fi
 
 # atac takes --fastqs / --sample like gex but writes a different outs: summary.csv
 # rather than metrics_summary.csv, a peak matrix rather than a feature one, and
