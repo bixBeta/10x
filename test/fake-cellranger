@@ -221,8 +221,6 @@ if [ "${FAKE_TOOL:-cellranger}" = "spaceranger" ] ; then
     printf 'Sample ID,Number of Spots Under Tissue,Mean Reads per Spot,Median Genes per Spot,Median UMI Counts per Spot,Number of Reads,Valid Barcodes,Sequencing Saturation,Fraction Reads in Spots Under Tissue,Reads Mapped Confidently to Probe Set,Total Genes Detected,Q30 Bases in Barcode,Pipeline Version\n' > "$m"
     printf '%s,"2,412","48,221","1,884","3,905","116,308,992",0.9712,0.4418,0.8903,0.8217,"18,443",0.9615,spaceranger-4.1.0\n' "$ID" >> "$m"
 
-    touch "${ID}/outs/filtered_feature_bc_matrix.h5"
-    touch "${ID}/outs/cloupe.cloupe"
     # what Seurat's Load10X_Spatial and squidpy actually read
     mkdir -p "${ID}/outs/spatial"
     printf 'barcode,in_tissue,array_row,array_col,pxl_row_in_fullres,pxl_col_in_fullres\n' \
@@ -230,6 +228,24 @@ if [ "${FAKE_TOOL:-cellranger}" = "spaceranger" ] ; then
     printf '{"spot_diameter_fullres": 123.4, "tissue_hires_scalef": 0.2}\n' \
         > "${ID}/outs/spatial/scalefactors_json.json"
     touch "${ID}/outs/spatial/tissue_hires_image.png" "${ID}/outs/spatial/aligned_fiducials.jpg"
+
+    # Visium HD writes NO top level matrix and suffixes the loupe file with the
+    # bin size: every bin gets its own directory with its own spatial/ folder.
+    # FAKE_HD=1 produces that shape instead of the standard Visium one, so the
+    # module's globs are tested against both rather than only the simple case.
+    if [ "${FAKE_HD:-0}" = "1" ] ; then
+        for bin in 002 008 016 ; do
+            d="${ID}/outs/binned_outputs/square_${bin}um"
+            mkdir -p "${d}/spatial"
+            touch "${d}/filtered_feature_bc_matrix.h5" "${d}/raw_feature_bc_matrix.h5"
+            cp "${ID}/outs/spatial/tissue_positions.csv"   "${d}/spatial/"
+            cp "${ID}/outs/spatial/scalefactors_json.json" "${d}/spatial/"
+        done
+        touch "${ID}/outs/cloupe_008um.cloupe"
+    else
+        touch "${ID}/outs/filtered_feature_bc_matrix.h5"
+        touch "${ID}/outs/cloupe.cloupe"
+    fi
 
     if [ -n "${CI_CAPTURE:-}" ] ; then
         mkdir -p "$CI_CAPTURE"

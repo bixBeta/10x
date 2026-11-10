@@ -24,7 +24,7 @@ process SPACERANGER_COUNT {
     publishDir "filtered_counts/${library}" , mode: "symlink", overwrite: true , pattern: "filtered_feature_bc_matrix.h5"
     publishDir "filtered_counts/${library}" , mode: "symlink", overwrite: true , pattern: "spatial"
     publishDir "filtered_counts/${library}" , mode: "symlink", overwrite: true , pattern: "binned_outputs"
-    publishDir "filtered_counts/${library}" , mode: "symlink", overwrite: true , pattern: "cloupe.cloupe"
+    publishDir "filtered_counts/${library}" , mode: "symlink", overwrite: true , pattern: "cloupe*.cloupe"
 
     publishDir "web_summary_htmls"      , mode: "symlink", overwrite: true , pattern: "*_web_summary.html"
     publishDir "summary_metrics"        , mode: "symlink", overwrite: true , pattern: "*_metrics_summary.csv"
@@ -45,7 +45,7 @@ process SPACERANGER_COUNT {
         path "filtered_feature_bc_matrix.h5"                    , emit: filtered_link   , optional: true
         path "spatial"                                          , emit: spatial_link    , optional: true
         path "binned_outputs"                                   , emit: binned_link     , optional: true
-        path "cloupe.cloupe"                                    , emit: cloupe_link     , optional: true
+        path "cloupe*.cloupe"                                   , emit: cloupe_link     , optional: true
         path "versions.yml"                                     , emit: versions
 
     script:
@@ -137,9 +137,14 @@ process SPACERANGER_COUNT {
     if [ -d outs/spatial ] ; then
         ln -s outs/spatial spatial
     fi
-    if [ -e outs/cloupe.cloupe ] ; then
-        ln -s outs/cloupe.cloupe cloupe.cloupe
-    fi
+    # Visium HD suffixes it with the bin size - cloupe_008um.cloupe - and can
+    # write one per bin, so this is a glob rather than the plain name a
+    # standard Visium run produces.
+    for f in outs/cloupe*.cloupe ; do
+        if [ -e "\$f" ] ; then
+            ln -s "\$f" "\$( basename "\$f" )"
+        fi
+    done
 
     # Visium HD writes no top level matrix: every bin size gets its own
     # directory under binned_outputs/, each with its own spatial/ folder.
@@ -159,14 +164,14 @@ process SPACERANGER_COUNT {
     touch outs/web_summary.html
     touch outs/metrics_summary.csv
     touch outs/filtered_feature_bc_matrix.h5
-    touch outs/cloupe.cloupe
+    touch outs/cloupe_008um.cloupe
     touch outs/spatial/tissue_positions.csv outs/spatial/scalefactors_json.json
 
     ln -s outs/web_summary.html    ${library}_web_summary.html
     ln -s outs/metrics_summary.csv ${library}_metrics_summary.csv
     ln -s outs/filtered_feature_bc_matrix.h5 filtered_feature_bc_matrix.h5
     ln -s outs/spatial                       spatial
-    ln -s outs/cloupe.cloupe                 cloupe.cloupe
+    ln -s outs/cloupe_008um.cloupe           cloupe_008um.cloupe
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

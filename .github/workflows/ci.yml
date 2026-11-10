@@ -1204,3 +1204,34 @@ jobs:
             echo "expected failure: --out exists and --force was not given"; exit 1
           fi
           echo "mk-sheet-10x OK"
+
+      - name: Visium HD outs shape is collected too
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts
+          # Visium HD writes NO top level matrix and suffixes the loupe file
+          # with the bin size, so the plain cloupe.cloupe name would silently
+          # never be linked. FAKE_HD=1 produces that shape.
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0 FAKE_HD=1
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial.csv --ref "$PWD/test/ref" \
+            --imagedir test/visium_images --slide H1-DYCH77W \
+            --srpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          ls -l filtered_counts/YF1/
+          # the bin suffixed loupe file, found by glob
+          test -e filtered_counts/YF1/cloupe_008um.cloupe \
+            || { echo "the HD loupe file was not linked"; exit 1; }
+          # every bin, each with its own matrix and spatial/ folder
+          for bin in 002 008 016 ; do
+            test -e "filtered_counts/YF1/binned_outputs/square_${bin}um/filtered_feature_bc_matrix.h5" \
+              || { echo "bin ${bin}um matrix missing"; exit 1; }
+            test -e "filtered_counts/YF1/binned_outputs/square_${bin}um/spatial/tissue_positions.csv" \
+              || { echo "bin ${bin}um spatial/ missing"; exit 1; }
+          done
+          # HD has no top level matrix, so that link must simply be absent
+          test ! -e filtered_counts/YF1/filtered_feature_bc_matrix.h5
+          # and the metrics still stack, which is what MultiQC reads
+          grep -q 'Number of Spots Under Tissue' summary_metrics/ALL_metrics_summary.csv
+          echo "Visium HD OK"
