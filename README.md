@@ -195,13 +195,13 @@ done, or dereference when archiving (`cp -rL`, `rsync -L`, `tar -h`).
 
 ## Building the sheet
 
-`scripts/make-sheet.py` writes one for you from the delivery. It derives what
+`scripts/mk-sheet-10x.py` writes one for you from the delivery. It derives what
 the naming convention supports and leaves everything else **empty with a note**,
 rather than guessing — a sheet that is wrong in a plausible way costs far more
 than one with a blank to fill.
 
 ```bash
-scripts/make-sheet.py spatial /local/Illumina/DRV/<run>/Unaligned/Project_104*** \
+scripts/mk-sheet-10x.py spatial /local/Illumina/DRV/<run>/Unaligned/Project_104*** \
     --imagedir visium_images -n          # -n prints it instead of writing
 ```
 
@@ -456,12 +456,12 @@ YF2,/local/.../Sample_SC2630_YF2_V-G3_B1_104***_23N***_L1,H1-DYCH77W,B1,CAVG1024
 ```
 
 ```bash
-scripts/make-sheet.py spatial /local/.../Project_104*** --imagedir visium_images
+scripts/mk-sheet-10x.py spatial /local/.../Project_104*** --imagedir visium_images
 nextflow run bixBeta/10x -r dev --mode spatial --ref Canine \
   --sheet sample-sheet.csv --slide H1-DYCH77W
 ```
 
-`scripts/make-sheet.py` derives the label, the area, the slide serial and the
+`scripts/mk-sheet-10x.py` derives the label, the area, the slide serial and the
 CytAssist image from the delivery — see [Building the sheet](#building-the-sheet).
 
 **Images live in one folder.** A bare file name in the sheet is looked up under
@@ -743,7 +743,7 @@ modules/websummary/main.nf         web_summary.html -> multiqc custom content
 modules/versions/main.nf           software_versions.yml
 nextflow.config                    engines, resources, retries
 containers/build-sif.sh            build a .sif locally
-scripts/make-sheet.py              generate a sample-sheet.csv from a delivery
+scripts/mk-sheet-10x.py              generate a sample-sheet.csv from a delivery
 test/                              stub inputs and a stand-in binary
 ```
 

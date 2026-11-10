@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a sample-sheet.csv for a 10x delivery.
 
-    scripts/make-sheet.py spatial /local/Illumina/DRV/<run>/Unaligned/Project_104*** \
+    scripts/mk-sheet-10x.py spatial /local/Illumina/DRV/<run>/Unaligned/Project_104*** \
         --imagedir visium_images
 
 Walks the delivery, works out one row per physical library, and derives whatever
@@ -413,7 +413,7 @@ def build(mode, deliveries, args, images, note):
 def main():
     # Shared flags live on a parent parser and each mode gets a subparser, so a
     # mode's own flags are its own: gex does not inherit spatial's --imagedir,
-    # and `make-sheet.py spatial --help` lists only what spatial takes.
+    # and `mk-sheet-10x.py spatial --help` lists only what spatial takes.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("paths", nargs="+", metavar="PATH",
                         help="the Project_* or Sample_* delivery directories")

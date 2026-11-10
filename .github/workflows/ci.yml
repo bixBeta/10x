@@ -1133,7 +1133,7 @@ jobs:
           grep -A1 'spaceranger_metrics_table:' assets/multiqc_config.yaml | grep -q 'order:'
           echo "spatial multiqc OK"
 
-      - name: make-sheet.py writes a sheet the pipeline accepts
+      - name: mk-sheet-10x.py writes a sheet the pipeline accepts
         env:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture-mksheet
         run: |
@@ -1143,7 +1143,7 @@ jobs:
           # spatial: the slide serial and the capture area are DERIVED, the
           # first off the CytAssist image name and the second off the fastq
           # prefix, so this asserts the derivation and not just the file shape
-          python3 scripts/make-sheet.py spatial \
+          python3 scripts/mk-sheet-10x.py spatial \
             test/Illumina/spatialrun/Unaligned/Project_10490358 \
             --imagedir test/visium_images -o test/sheet-made-spatial.csv --force
           cat test/sheet-made-spatial.csv
@@ -1171,7 +1171,7 @@ jobs:
           # an imagedir with nothing matching must leave the columns EMPTY and
           # say so, never invent a file name
           mkdir -p test/emptyimages
-          python3 scripts/make-sheet.py spatial \
+          python3 scripts/mk-sheet-10x.py spatial \
             test/Illumina/spatialrun/Unaligned/Project_10490358 \
             --imagedir test/emptyimages -o test/sheet-made-blank.csv --force 2> test/mksheet.notes
           grep -q 'no slide serial found' test/mksheet.notes
@@ -1182,7 +1182,7 @@ jobs:
 
           # gex: two GEM wells of one sample, which is what the library column
           # is for. It appears only because --rename collapsed them.
-          python3 scripts/make-sheet.py gex \
+          python3 scripts/mk-sheet-10x.py gex \
             test/Illumina/run1/Unaligned/Project_10488923 \
             --rename JS6A=JS6 --rename JS6B=JS6 -o test/sheet-made-gex.csv --force
           cat test/sheet-made-gex.csv
@@ -1193,14 +1193,14 @@ jobs:
           # reads as "library = label"
           grep -q '^JS4,[^,]*,$' test/sheet-made-gex.csv
 
-          python3 scripts/make-sheet.py atac \
+          python3 scripts/mk-sheet-10x.py atac \
             test/Illumina/run1/Unaligned/Project_10488923 -o test/sheet-made-atac.csv --force
           head -1 test/sheet-made-atac.csv | grep -qx 'label,fastqs,library_type'
           grep -q 'Chromatin Accessibility' test/sheet-made-atac.csv
 
           # it must not clobber a sheet already sitting there
-          if python3 scripts/make-sheet.py gex \
+          if python3 scripts/mk-sheet-10x.py gex \
                test/Illumina/run1/Unaligned/Project_10488923 -o test/sheet-made-gex.csv ; then
             echo "expected failure: --out exists and --force was not given"; exit 1
           fi
-          echo "make-sheet OK"
+          echo "mk-sheet-10x OK"
