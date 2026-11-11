@@ -457,7 +457,7 @@ YF2,/local/.../Sample_SC2630_YF2_V-G3_B1_104***_23N***_L1,H1-DYCH77W,B1,CAVG1024
 
 ```bash
 scripts/mk-sheet-10x.py spatial /local/.../Project_104*** --imagedir visium_images
-nextflow run bixBeta/10x -r dev --mode spatial --ref Canine \
+nextflow run bixBeta/10x -r main --mode spatial --ref Canine \
   --sheet sample-sheet.csv --slide H1-DYCH77W
 ```
 
