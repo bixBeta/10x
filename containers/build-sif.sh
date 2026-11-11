@@ -9,6 +9,7 @@
 #
 #  <source> is a 10x tarball, which is built from scratch:
 #    ./containers/build-sif.sh cellranger-arc 2.2.0 ~/cellranger-arc-2.2.0.tar.gz /local/workdir/singularity
+#    ./containers/build-sif.sh spaceranger    4.1.0 ~/spaceranger-4.1.0.tar.gz    /local/workdir/singularity
 #
 #  or an existing image, which is just converted:
 #    ./containers/build-sif.sh cellranger 9.0.1 docker://<registry>/cellranger:9.0.1 /local/workdir/singularity
@@ -49,8 +50,8 @@ if [ -z "$TOOL" ] || [ -z "$VERSION" ] || [ -z "$SOURCE" ] ; then
 fi
 
 case "$TOOL" in
-    cellranger|cellranger-arc|cellranger-atac|multiqc) : ;;
-    *) echo "unknown tool '$TOOL' (expected cellranger, cellranger-arc, cellranger-atac or multiqc)" >&2 ; exit 1 ;;
+    cellranger|cellranger-arc|cellranger-atac|spaceranger|multiqc) : ;;
+    *) echo "unknown tool '$TOOL' (expected cellranger, cellranger-arc, cellranger-atac, spaceranger or multiqc)" >&2 ; exit 1 ;;
 esac
 
 # resolved only once the inputs are known good, so a bad tarball reports itself
@@ -130,7 +131,8 @@ trap 'rm -f "$DEF"' EXIT
 
 # %files copies from the host at build time, so the tarball never has to be
 # reachable afterwards. cellranger keeps its executable at the top of the
-# install dir, cellranger-arc / -atac keep it in bin/ - both go on PATH.
+# install dir, cellranger-arc keeps it in bin/, spaceranger at the top like
+# cellranger - all of them go on PATH.
 cat > "$DEF" <<EOF
 Bootstrap: docker
 From: ubuntu:22.04
@@ -194,6 +196,7 @@ case "$TOOL" in
     cellranger)      VERFLAG="--crversion"      ;;
     cellranger-arc)  VERFLAG="--arcversion"     ;;
     cellranger-atac) VERFLAG="--atacversion"    ;;
+    spaceranger)     VERFLAG="--srversion"      ;;
     multiqc)         VERFLAG="--multiqcversion" ;;
     *)               VERFLAG="--crversion"      ;;
 esac

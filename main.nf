@@ -24,6 +24,18 @@ params.r2length         = null
 params.peaks            = null
 params.dimReduce        = null
 
+// spatial only: spaceranger counts one Visium capture area, so it needs the
+// microscope image and the slide identity alongside the reads.
+// The read lengths are their own params rather than --r1length / --r2length:
+// a Visium library is not a gex one, and gex's default of 28 would silently
+// trim a 43 nt CytAssist R1.
+params.imagedir         = "visium_images"
+params.slide            = null
+params.probeset         = null
+params.nosecondary      = false
+params.spatialR1length  = null
+params.spatialR2length  = null
+
 // multi only: cellranger multi needs a reference per assay present in the sheet
 params.vdjref           = null
 params.featureref       = null
@@ -143,6 +155,53 @@ Args:
         with --chemistry ARC-v1 and an arc reference. --mode arc cannot do it:
         cellranger-arc needs both libraries and has no single assay mode.
 
+        VISIUM ( --mode spatial ): one row per capture area. spaceranger takes
+        --fastqs / --sample like the gex path, plus two things only spatial
+        has: WHICH slide and area the section sat on, and an IMAGE of the
+        tissue to align the spots to.
+
+        |-------|-----------------------------|------------|------|------------------------|
+        | label | fastqs                      | slide      | area | cytaimage              |
+        |-------|-----------------------------|------------|------|------------------------|
+        | YF1   | /local/.../Sample_..._A1_..._L1 | H1-DYCH77W | A1   | CAVG..._A1_yf1.tif |
+        | YF2   | /local/.../Sample_..._B1_..._L1 | H1-DYCH77W | B1   | CAVG..._B1_yf2.tif |
+        |-------|-----------------------------|------------|------|------------------------|
+
+        slide is the serial printed on the slide and area is the capture area
+        the section sits in ( A1 | B1 | C1 | D1 ). One slide normally carries
+        a whole run, so --slide sets it for every row and only area has to be
+        in the sheet. If the serial is lost, put one of spaceranger's keywords
+        in slide instead - visium-1, visium-2, visium-2-large - and leave area
+        out; that becomes --unknown-slide.
+
+        An image is REQUIRED, in whichever column matches what was taken:
+
+            cytaimage        the tif the CytAssist instrument wrote
+                             ( CytAssist assays, Visium HD included )
+            image            a brightfield H&E image
+            darkimage        a fluorescence image
+            colorizedimage   a composite colour fluorescence image
+
+        A bare file name is looked up under --imagedir, which defaults to
+        visium_images next to where you launch - so drop the tifs the lab sent
+        in there and the sheet only has to name them. A full path works too.
+
+        Three more optional columns, all files, all resolved the same way:
+
+            probeset     --probe-set, for a probe based ( FFPE / CytAssist )
+                         assay that needs a panel other than the reference's
+            alignment    --loupe-alignment, the json Loupe Browser exports
+                         when the fiducial frame had to be aligned by hand.
+                         Needed whenever spaceranger's own alignment missed,
+                         which is common for fluorescence and folded sections
+            slidefile    --slidefile, the slide layout .gpr. spaceranger
+                         normally fetches the layout from 10x, so this is what
+                         an offline compute node needs
+
+        A capture area sequenced over several lanes or runs: repeat the label,
+        exactly as in gex mode. The slide, area and image columns must match on
+        every row of that label - they describe one physical section.
+
         MULTI ( --mode multi ): one label carries every library of one sample,
         told apart by library_type. cellranger multi takes them together
         through a config csv, which this pipeline writes for you.
@@ -205,6 +264,7 @@ Args:
                          run on its own, with --chemistry ARC-v1 )
                        : use 'multi' for cellranger multi: GEX plus any of
                          Antibody Capture ( CITE-seq ), CRISPR and VDJ
+                       : use 'spatial' for Visium / Visium HD through spaceranger
 
     * --ref            : 10x reference. Use --listRefs to see all available references.
                          Also supports a path value for a cellranger transcriptome dir.
@@ -221,6 +281,21 @@ Args:
                          default <null> ( cellranger-atac calls its own )
     * --dimReduce      : atac only. cellranger-atac --dim-reduce: lsa | plsa | pca
                          default <null> ( tool default, lsa )
+    * --imagedir       : spatial only. Where a bare image file name in the sheet
+                         is looked up; default <visium_images>, relative to the
+                         launch dir. A full path in the sheet skips this.
+    * --slide          : spatial only. Slide serial for every row that does not
+                         give its own, e.g. H1-DYCH77W. One slide normally
+                         carries a whole run.
+    * --probeset       : spatial only. --probe-set panel csv for every row that
+                         does not give its own; default <null>
+    * --nosecondary    : spatial only. Skip spaceranger's secondary analysis
+                         ( clustering, t-SNE, UMAP ); default <false>
+    * --spatialR1length: spatial only. --r1-length; default <null> ( spaceranger
+                         reads the length itself ). NOT --r1length: a CytAssist
+                         library carries a 43 nt R1, so the gex default of 28
+                         would trim every read.
+    * --spatialR2length: spatial only. --r2-length; default <null>
     * --vdjref         : multi only. VDJ reference for the [vdj] section; a key
                          from --listRefs or a full path. Required when the sheet
                          carries a VDJ library.
@@ -246,6 +321,7 @@ Args:
     * --crversion      : Cell Ranger version; default <9.0.1>
     * --arcversion     : cellranger-arc version; default <2.2.0>
     * --atacversion    : cellranger-atac version; default <2.2.0>
+    * --srversion      : spaceranger version; default <4.1.0>
     * --engine         : 'singularity' runs a locally built .sif; default <singularity>
                        : 'local'       runs an install under --programs
 
@@ -254,23 +330,28 @@ Args:
                          -> <sifdir>/cellranger-<crversion>.sif
                          -> <sifdir>/cellranger-arc-<arcversion>.sif
                          -> <sifdir>/cellranger-atac-<atacversion>.sif
+                         -> <sifdir>/spaceranger-<srversion>.sif
         * --crsif      : Full path to the gex image. Overrides sifdir + crversion.
         * --arcsif     : Full path to the arc image.
         * --atacsif    : Full path to the atac image.
+        * --srsif      : Full path to the spaceranger image.
 
                          Build one with:
                          containers/build-sif.sh cellranger      10.1.0 <tarball> <sifdir>
                          containers/build-sif.sh cellranger-arc  2.2.0  <tarball> <sifdir>
                          containers/build-sif.sh cellranger-atac 2.2.0  <tarball> <sifdir>
+                         containers/build-sif.sh spaceranger     4.1.0  <tarball> <sifdir>
 
       local:
         * --programs   : Where the installs live; default </programs>
                          -> /programs/cellranger-<crversion>/cellranger
                          -> /programs/cellranger-arc-<arcversion>/bin/cellranger-arc
                          -> /programs/cellranger-atac-<atacversion>/cellranger-atac
+                         -> /programs/spaceranger-<srversion>/spaceranger
         * --crpath     : Full path to the cellranger binary. Implies --engine local.
         * --arcpath    : Full path to the cellranger-arc binary. Implies --engine local.
         * --atacpath   : Full path to the cellranger-atac binary. Implies --engine local.
+        * --srpath     : Full path to the spaceranger binary. Implies --engine local.
         * --listPrograms : List what is installed under --programs
 
       Either way the resolved image or binary is checked before anything runs, so
@@ -303,6 +384,18 @@ Args:
       --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]> \\
       [ --chemistry=<chemistry> --force-cells=<forceCells> --peaks=<peaks> --dim-reduce=<dimReduce> ]
 
+  spatial mode, one per capture area:
+
+    <srbin> count --id=<label> \\
+      --localcores=<localcores> --localmem=<localmem> \\
+      --transcriptome=<ref> \\
+      --fastqs=<dir[,dir2]> --sample=<prefix[,prefix2]> \\
+      --create-bam=<createBam> \\
+      --slide=<slide> --area=<area>   (  or --unknown-slide=<visium-N>  ) \\
+      --cytaimage=<tif> [ --image / --darkimage / --colorizedimage ] \\
+      [ --probe-set=<csv> --loupe-alignment=<json> --slidefile=<gpr> \\
+        --nosecondary --r1-length=<spatialR1length> --r2-length=<spatialR2length> ]
+
 """
 
     exit 0
@@ -311,12 +404,22 @@ Args:
 
 // Each mode drives a different tool, so the banner reports the one that will
 // actually run rather than always naming cellranger.
-modeTool    = params.mode == "arc" ? "cellranger-arc" : params.mode == "atac" ? "cellranger-atac" : "cellranger"
-modeVersion = params.mode == "arc" ? params.arcversion : params.mode == "atac" ? params.atacversion : params.crversion
-modeEngine  = params.mode == "arc" ? params.arcengine  : params.mode == "atac" ? params.atacengine  : params.crengine
-modeImage   = params.mode == "arc" ? ( params.arcimage  ?: params.arcbin  )
-            : params.mode == "atac" ? ( params.atacimage ?: params.atacbin )
-            :                         ( params.crimage   ?: params.crbin  )
+modeTool    = params.mode == "arc"     ? "cellranger-arc"
+            : params.mode == "atac"    ? "cellranger-atac"
+            : params.mode == "spatial" ? "spaceranger"
+            :                            "cellranger"
+modeVersion = params.mode == "arc"     ? params.arcversion
+            : params.mode == "atac"    ? params.atacversion
+            : params.mode == "spatial" ? params.srversion
+            :                            params.crversion
+modeEngine  = params.mode == "arc"     ? params.arcengine
+            : params.mode == "atac"    ? params.atacengine
+            : params.mode == "spatial" ? params.srengine
+            :                            params.crengine
+modeImage   = params.mode == "arc"     ? ( params.arcimage  ?: params.arcbin  )
+            : params.mode == "atac"    ? ( params.atacimage ?: params.atacbin )
+            : params.mode == "spatial" ? ( params.srimage    ?: params.srbin   )
+            :                            ( params.crimage   ?: params.crbin  )
 
 log.info """
 1  0  x      W  O  R  K  F  L  O  W  -  @bixBeta
@@ -336,6 +439,16 @@ version      : ${modeTool} ${modeVersion}
 engine       : ${modeEngine}
 cellranger   : ${modeImage}
 """
+
+if( params.mode == "spatial" ) {
+    log.info """imagedir     : ${params.imagedir}
+slide        : ${params.slide ?: '< from the sheet >'}
+probeset     : ${params.probeset ?: '< none >'}
+nosecondary  : ${params.nosecondary}
+r1length     : ${params.spatialR1length ?: '< left to spaceranger >'}
+r2length     : ${params.spatialR2length ?: '< left to spaceranger >'}
+"""
+}
 
 // Fail here, with the resolved path, rather than a task dying much later.
 // singularity: the .sif must exist. local: the binary must exist.
@@ -368,12 +481,12 @@ def checkEngine(engine, bin, image, what) {
 
     if( file(bin).exists() ) return
 
-    def installed = file("${params.programs}/cellranger*")
+    def installed = file("${params.programs}/{cellranger,spaceranger}*")
     def avail = ( installed instanceof List ? installed : ( installed ? [installed] : [] ) )
                     .collect { it.name }.sort()
 
     error """No ${what} found at: ${bin}
-    Installed under ${params.programs}: ${ avail ? avail.join(', ') : 'nothing matching cellranger*' }
+    Installed under ${params.programs}: ${ avail ? avail.join(', ') : 'nothing matching cellranger* or spaceranger*' }
     Set a version that is installed, or give the full path."""
 }
 
@@ -387,11 +500,11 @@ if( params.listPrograms ) {
     """
     .stripIndent()
 
-    def installed = file("${params.programs}/cellranger*")
+    def installed = file("${params.programs}/{cellranger,spaceranger}*")
     def dirs = ( installed instanceof List ? installed : ( installed ? [installed] : [] ) ).sort()
 
     if( !dirs ) {
-        println "nothing matching ${params.programs}/cellranger*"
+        println "nothing matching ${params.programs}/cellranger* or ${params.programs}/spaceranger*"
     }
     else {
         dirs.each { d ->
@@ -510,6 +623,7 @@ if( params.listRefs ) {
 include {   CELLRANGER_COUNT         } from './modules/cellranger'
 include {   CELLRANGER_ARC_COUNT     } from './modules/cellrangerarc'
 include {   CELLRANGER_ATAC_COUNT    } from './modules/cellrangeratac'
+include {   SPACERANGER_COUNT        } from './modules/spaceranger'
 include {   WEBSUMMARY_MQC           } from './modules/websummary'
 include {   CELLRANGER_MULTI         } from './modules/cellrangermulti'
 include {   MULTI_METRICS_MQC        } from './modules/multimetrics'
@@ -712,6 +826,99 @@ def readRows() {
               def res   = resolveFastqs(fq, label, row.sample?.trim())
 
               [ label, library, res[0], res[1], ltype ]
+          }
+}
+
+
+// A spatial input that is a file: the microscope image, the probe set csv, a
+// Loupe manual alignment json, a slide layout gpr. A bare name is looked up
+// under --imagedir, so the sheet can name the tif the lab delivered rather than
+// repeating a long path on every row; an absolute path is taken as given.
+// Absent returns [], which is what an optional path input in a module takes.
+def spatialFile(given, label, what) {
+
+    if( !given ) return []
+
+    // file() resolves a relative path against the launch dir and returns an
+    // absolute Path either way, so a sheet value and --imagedir are handled by
+    // the same call rather than by string surgery.
+    def named = file(given)
+    def base  = file(params.imagedir)
+    def under = file("${base}/${given}")
+
+    if( under.exists() )   return under
+    if( named.exists() )   return named
+    // -stub-run has no real inputs, so the name is passed through unchecked
+    if( workflow.stubRun ) return under
+
+    error """sample-sheet: ${label}: no ${what} named '${given}'
+    looked for  ${under}
+    and for     ${named}
+    Put the images under ${base} and name them in the sheet, or give a full path."""
+}
+
+
+// spaceranger counts one capture area at a time from --fastqs / --sample, like
+// the gex path. What is different is that every area also carries its slide
+// identity and a picture of the tissue, so those columns ride along with the
+// reads and the whole sheet is validated before anything is submitted - an
+// image typo should not surface an hour into a run.
+def readRowsSpatial() {
+
+    ch_sheet
+        | splitCsv( header:true )
+        | map { row ->
+              def label   = row.label?.trim()
+              def library = row.library?.trim() ?: label
+              def fq      = row.fastqs?.trim()
+
+              if( !label ) error "sample-sheet: every row needs a label"
+              if( !fq )    error "sample-sheet: ${label} is missing fastqs ( a 10x delivery dir, or any fastq in it )"
+
+              def ltype = libraryType(row.library_type?.trim(), label)
+              if( ltype != "Gene Expression" )
+                  error "sample-sheet: ${label} is '${ltype}'. --mode spatial counts Gene Expression only."
+
+              def res = resolveFastqs(fq, label, row.sample?.trim())
+
+              // one slide usually carries every area of a run, so --slide is
+              // taken as a default and only the area has to be per row
+              def slide = row.slide?.trim() ?: params.slide
+              def area  = row.area?.trim()
+
+              if( !slide )
+                  error """sample-sheet: ${label} has no slide. It is the serial printed on the Visium slide, e.g. H1-DYCH77W.
+    Put it in a slide column, or pass --slide when the whole run is one slide.
+    If the serial is lost, use one of spaceranger's keywords instead -
+    visium-1, visium-2 or visium-2-large - and leave area out."""
+
+              if( slide.startsWith("visium-") ) {
+                  if( area )
+                      error "sample-sheet: ${label}: slide '${slide}' is an unknown-slide keyword, which has no capture area. Drop the area, or give the real slide serial."
+              }
+              else if( !area ) {
+                  error "sample-sheet: ${label} has no area. It is the capture area the section sits in: A1, B1, C1 or D1."
+              }
+
+              def images = [ row.cytaimage?.trim(), row.image?.trim(),
+                             row.darkimage?.trim(), row.colorizedimage?.trim() ]
+
+              if( !images.any { it } )
+                  error """sample-sheet: ${label} has no image. spaceranger aligns the reads to a picture of the tissue, so one is required:
+    cytaimage        the tif the CytAssist instrument wrote ( CytAssist assays, Visium HD included )
+    image            a brightfield H&E image
+    darkimage        a fluorescence image
+    colorizedimage   a composite colour fluorescence image
+    A bare file name is looked up under ${params.imagedir}; a full path works too."""
+
+              [ label, library, res[0], res[1], slide, area ?: "",
+                spatialFile(images[0], label, "cytaimage"),
+                spatialFile(images[1], label, "image"),
+                spatialFile(images[2], label, "darkimage"),
+                spatialFile(images[3], label, "colorizedimage"),
+                spatialFile(row.probeset?.trim() ?: params.probeset, label, "probe set csv"),
+                spatialFile(row.alignment?.trim(), label, "loupe alignment json"),
+                spatialFile(row.slidefile?.trim(), label, "slide file") ]
           }
 }
 
@@ -978,6 +1185,88 @@ workflow ATAC {
 
 
 /* ---------------------------------------------------------------------------------------------------------
+VISIUM SPATIAL Workflow
+
+spaceranger counts one capture area at a time from --fastqs / --sample, like the
+gex path. Everything specific to spatial is an extra INPUT rather than an extra
+step: the slide serial and capture area, and a microscope image to align the
+reads to. Those are per area, so they live in the sheet.
+------------------------------------------------------------------------------------------------------------ */
+
+workflow SPATIAL {
+
+    checkEngine(params.srengine, params.srbin, params.srimage, "spaceranger")
+
+    if( ref == null ){
+        error "No reference provided. Use --ref < key or path >, see --listRefs"
+    }
+
+    checkReference(ref, "spaceranger")
+
+    // --r1length is the gex flag, and its default of 28 would silently trim a
+    // 43 nt CytAssist R1 down to a gex barcode. Rather than quietly ignore a
+    // value someone meant, say where it should go.
+    if( params.r1length != 28 || workflow.commandLine =~ /--r1length/ )
+        error """spatial: --r1length / --r2length are the gene expression flags and are not used here.
+    A Visium read is not a gex read - a CytAssist library carries a 43 nt R1 -
+    so this mode has --spatialR1length / --spatialR2length instead, and passes
+    neither unless asked, leaving spaceranger to read the length itself."""
+
+    meta_ch = readRowsSpatial()
+        | map { r -> [ [ r[0], r[1] ], r[2..-1] ] }
+        | groupTuple
+        | map { key, entries ->
+
+              // same pooling rule as gex: repeated rows for one library are
+              // re-sequencing runs, passed as comma separated lists
+              def dirs    = entries.collect { it[0] }.unique().sort()
+              def samples = entries.collectMany { it[1] }.unique().sort()
+
+              // a capture area is one physical thing, so everything after the
+              // reads has to agree across its rows. Two rows naming different
+              // images would otherwise have one of them picked at random.
+              def rest = entries.collect { it[2..-1] }.unique()
+              if( rest.size() > 1 )
+                  error "sample-sheet: ${key[1]} appears more than once with different slide / area / image values. Repeat a label only for re-sequencing runs of the same capture area."
+
+              [ key[1], key[0], dirs, samples ] + rest[0]
+          }
+        | view { r ->
+              "VISIUM >> ${r[0]}  ( label: ${r[1]}, fastq dirs: ${r[2].size()}, sample: ${r[3].join(',')}, slide: ${r[4]}${ r[5] ? ' ' + r[5] : '' } )" }
+
+    SPACERANGER_COUNT(meta_ch, ref_ch)
+
+    // spaceranger reports a wide metrics_summary.csv like gex does, so the rows
+    // stack straight into one table. It gets its own section id because the
+    // columns are spots and slides rather than cells.
+    COMBINE_METRICS(
+        SPACERANGER_COUNT.out.run_metrics
+            | collect
+            | filter { it }
+            | map { csvs -> [ "ALL_metrics_summary.csv", "spaceranger_metrics", csvs ] }
+    )
+
+    DUMP_VERSIONS( SPACERANGER_COUNT.out.versions.first().collect() )
+
+    if( params.multiqc ) {
+
+        checkEngine(params.multiqcengine, params.multiqcbin, params.multiqcimage, "multiqc")
+
+        // MultiQC ships no spaceranger module, and its cellranger module only
+        // matches a count web summary, so the html is published for a human to
+        // open but NOT handed over: a module that tried and failed would take
+        // the whole report down ( MultiQC issue #3609 ). What multiqc gets is
+        // what this pipeline rendered from the metrics.
+        MULTIQC(
+            COMBINE_METRICS.out.mqc.collect(),
+            ch_mqc_config,
+            DUMP_VERSIONS.out.mqc_yml
+        )
+    }
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------
 MULTI Workflow
 
 One label carries every library of one sample - Gene Expression plus any of
@@ -1106,6 +1395,11 @@ workflow {
     else if( params.mode == "arc" ){
 
         ARC()
+    }
+
+    else if( params.mode == "spatial" ){
+
+        SPATIAL()
     }
 
     else if( params.mode == "multi" ){

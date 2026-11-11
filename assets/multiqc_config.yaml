@@ -18,7 +18,8 @@ disable_version_detection: True
 # https://github.com/MultiQC/MultiQC/issues/3609 - it cannot parse
 # cellranger-arc 2.2 web summaries today, which is why the pipeline supplies
 # cellranger_arc_metrics itself. There is no cellranger-atac module at all, so
-# cellranger_atac_metrics is rendered by the pipeline for the same reason.
+# cellranger_atac_metrics is rendered by the pipeline for the same reason, and
+# spaceranger has no module at all either, hence spaceranger_metrics.
 report_section_order:
   cellranger:
     order: 100
@@ -30,6 +31,8 @@ report_section_order:
     order: 81
   cellranger_arc_metrics_gex:
     order: 80
+  spaceranger_metrics_table:
+    order: 75
   cellranger_atac_metrics_table:
     order: 70
   cellranger_atac_metrics_ws_sequencing:

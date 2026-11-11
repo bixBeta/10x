@@ -72,6 +72,25 @@ LAYOUTS = {
             "Sequenced read pairs",
         }),
     ],
+    # spaceranger reports spots and slides rather than cells, so it gets its own
+    # section id and its own headline columns. Both the polyA and the probe based
+    # column names are listed: a name that is not in the csv is simply absent.
+    "spaceranger_metrics": [
+        ("table",   "Space Ranger (Visium)",    None,    {
+            "Number of Spots Under Tissue",
+            "Number of Squares Under Tissue",
+            "Mean Reads per Spot",
+            "Median Genes per Spot",
+            "Median UMI Counts per Spot",
+            "Number of Reads",
+            "Valid Barcodes",
+            "Sequencing Saturation",
+            "Fraction Reads in Spots Under Tissue",
+            "Reads Mapped Confidently to Probe Set",
+            "Reads Mapped Confidently to Transcriptome",
+            "Total Genes Detected",
+        }),
+    ],
     "cellranger_atac_metrics": [
         ("table",   "Cell Ranger ATAC",         None,    {
             "Estimated number of cells",
@@ -96,11 +115,14 @@ WHY = {
         "MultiQC cannot parse cellranger-arc 2.2 web summaries itself (MultiQC issue 3609).",
     "cellranger_atac_metrics":
         "MultiQC ships no cellranger-atac module, so the web summaries are published but not parsed.",
+    "spaceranger_metrics":
+        "MultiQC ships no spaceranger module, so the web summaries are published but not parsed.",
 }
 
 SKIP = {"label"}
-# already reported in the Software Versions section
-DROP = {"Pipeline version"}
+# already reported in the Software Versions section. cellranger-arc / -atac
+# write "version", spaceranger writes "Version".
+DROP = {"Pipeline version", "Pipeline Version"}
 
 def number(value):
     for cast in (int, float):
