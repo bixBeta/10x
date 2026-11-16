@@ -1264,7 +1264,7 @@ jobs:
             --localcores 2 --localmem 4
 
           cat "$CI_CAPTURE/YF1.command.txt"
-          grep -qx -- '--darkimage=YF2_fluor.tif'  "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--darkimage=fluorescence_stack.tif'  "$CI_CAPTURE/YF1.command.txt"
           grep -qx -- '--dapi-index=1'             "$CI_CAPTURE/YF1.command.txt"
           grep -qx -- '--image-scale=0.4825'       "$CI_CAPTURE/YF1.command.txt"
 

@@ -134,7 +134,10 @@ mkdir -p "$IMG"
 : > "${IMG}/CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif"
 : > "${IMG}/CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif"
 : > "${IMG}/YF1_microscope.jpg"
-: > "${IMG}/YF2_fluor.tif"
+# deliberately carries NO label or area token: the generator pairs images to
+# rows by those, so a name like YF2_fluor.tif would land in YF2's image
+# column and perturb the brightfield test that shares this directory
+: > "${IMG}/fluorescence_stack.tif"
 printf 'probe_id,gene_id\nENSCAFP0001,ENSCAFG0001\n' > "${IMG}/probe_set.csv"
 printf '{}\n' > "${IMG}/YF1_alignment.json"
 
@@ -152,8 +155,8 @@ EOF
 # is a NUMBER, and groovy counts 0 as false, so a plain ternary would drop it.
 cat > "${HERE}/sample-sheet-spatial-fluor.csv" <<EOF
 label,fastqs,slide,area,cytaimage,darkimage,dapiindex,imagescale
-YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF2_fluor.tif,1,0.4825
-YF2,${YF2},H1-DYCH77W,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,YF2_fluor.tif,0,
+YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,fluorescence_stack.tif,1,0.4825
+YF2,${YF2},H1-DYCH77W,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,fluorescence_stack.tif,0,
 EOF
 
 # dapiindex with no fluorescence image to index: nothing for it to select
