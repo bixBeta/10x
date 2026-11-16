@@ -134,16 +134,38 @@ mkdir -p "$IMG"
 : > "${IMG}/CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif"
 : > "${IMG}/CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif"
 : > "${IMG}/YF1_microscope.jpg"
+: > "${IMG}/YF2_fluor.tif"
 printf 'probe_id,gene_id\nENSCAFP0001,ENSCAFG0001\n' > "${IMG}/probe_set.csv"
 printf '{}\n' > "${IMG}/YF1_alignment.json"
 
 # YF1's slide is in the sheet, YF2's is not: --slide covers a run that sat on
 # one slide, which is the usual case.
 cat > "${HERE}/sample-sheet-spatial.csv" <<EOF
-label,fastqs,slide,area,cytaimage,image,probeset,alignment
-YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json
-YF1,${YF1b},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json
-YF2,${YF2},,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,,,
+label,fastqs,slide,area,cytaimage,image,probeset,alignment,imagescale
+YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json,0.4825
+YF1,${YF1b},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF1_microscope.jpg,probe_set.csv,YF1_alignment.json,0.4825
+YF2,${YF2},,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,,,,
+EOF
+
+# fluorescence instead of brightfield: a darkimage, and dapiindex naming which
+# of its channels is DAPI. Index 1, and a row with 0 as well - a channel index
+# is a NUMBER, and groovy counts 0 as false, so a plain ternary would drop it.
+cat > "${HERE}/sample-sheet-spatial-fluor.csv" <<EOF
+label,fastqs,slide,area,cytaimage,darkimage,dapiindex,imagescale
+YF1,${YF1a},H1-DYCH77W,A1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_A1_A2.tif,YF2_fluor.tif,1,0.4825
+YF2,${YF2},H1-DYCH77W,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,YF2_fluor.tif,0,
+EOF
+
+# dapiindex with no fluorescence image to index: nothing for it to select
+cat > "${HERE}/sample-sheet-spatial-baddapi.csv" <<EOF
+label,fastqs,slide,area,cytaimage,dapiindex
+YF2,${YF2},H1-DYCH77W,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,1
+EOF
+
+# a scale that is not a number
+cat > "${HERE}/sample-sheet-spatial-badscale.csv" <<EOF
+label,fastqs,slide,area,cytaimage,image,imagescale
+YF2,${YF2},H1-DYCH77W,D1,CAVG10243R1_2026-10-05_15-14-00_2026-10-05_14-33-36_H1-DYCH77W_D1_B1.tif,YF1_microscope.jpg,half a micron
 EOF
 
 # no image column filled in at all: spaceranger has nothing to align to, so the

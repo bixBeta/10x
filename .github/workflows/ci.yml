@@ -983,6 +983,13 @@ jobs:
           grep -qx -- '--image=YF1_microscope.jpg'                    "$CI_CAPTURE/YF1.command.txt"
           grep -qx -- '--probe-set=probe_set.csv'                     "$CI_CAPTURE/YF1.command.txt"
           grep -qx -- '--loupe-alignment=YF1_alignment.json'          "$CI_CAPTURE/YF1.command.txt"
+          # a microscope image ALONGSIDE the cytassist one, plus the scale that
+          # registers the two. image is optional once cytaimage is given.
+          grep -qx -- '--image-scale=0.4825'                          "$CI_CAPTURE/YF1.command.txt"
+          # YF2 gave no scale, so the flag must be absent rather than empty
+          if grep -q -- '--image-scale' "$CI_CAPTURE/YF2.command.txt" ; then
+            cat "$CI_CAPTURE/YF2.command.txt"; echo "an unset scale must not become a flag"; exit 1
+          fi
 
           # spatial takes --transcriptome, never the arc / atac flags
           if grep -qE -- '--(reference|libraries)=' "$CI_CAPTURE/YF1.command.txt" ; then
@@ -1241,3 +1248,85 @@ jobs:
           # and the metrics still stack, which is what MultiQC reads
           grep -q 'Number of Spots Under Tissue' summary_metrics/ALL_metrics_summary.csv
           echo "Visium HD OK"
+
+      - name: spatial fluorescence images and their scalars
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-fluor
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
+
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial-fluor.csv --ref "$PWD/test/ref" \
+            --imagedir test/visium_images \
+            --srpath "$PWD/test/fake-cellranger" --multiqc false \
+            --localcores 2 --localmem 4
+
+          cat "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--darkimage=YF2_fluor.tif'  "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--dapi-index=1'             "$CI_CAPTURE/YF1.command.txt"
+          grep -qx -- '--image-scale=0.4825'       "$CI_CAPTURE/YF1.command.txt"
+
+          # A channel index of 0 is a real channel, and groovy counts 0 as
+          # false, so a plain ternary would silently drop the flag. This is the
+          # same shape of bug that once sorted Gene Expression last in multi.
+          grep -qx -- '--dapi-index=0' "$CI_CAPTURE/YF2.command.txt" \
+            || { cat "$CI_CAPTURE/YF2.command.txt"; echo "--dapi-index=0 was dropped"; exit 1; }
+          # and YF2 set no scale
+          if grep -q -- '--image-scale' "$CI_CAPTURE/YF2.command.txt" ; then
+            echo "an unset scale must not become a flag"; exit 1
+          fi
+          echo "fluorescence OK"
+
+      - name: spatial rejects scalars it cannot use
+        run: |
+          set -euo pipefail
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
+          run_spatial () {
+            nextflow run . -c test/ci.config --mode spatial \
+              --ref "$PWD/test/ref" --imagedir test/visium_images \
+              --srpath "$PWD/test/fake-cellranger" --multiqc false \
+              --localcores 2 --localmem 4 "$@"
+          }
+
+          # --dapi-index selects a channel OF a fluorescence image
+          if run_spatial --sheet test/sample-sheet-spatial-baddapi.csv ; then
+            echo "expected failure: dapiindex with no fluorescence image"; exit 1
+          fi
+
+          # microns per pixel is a number
+          if run_spatial --sheet test/sample-sheet-spatial-badscale.csv ; then
+            echo "expected failure: non numeric imagescale"; exit 1
+          fi
+
+          # a run wide --dapiindex is subject to the same rule, so a sheet with
+          # no fluorescence image must still be rejected
+          if run_spatial --sheet test/sample-sheet-spatial.csv --dapiindex 1 ; then
+            echo "expected failure: --dapiindex with no fluorescence image"; exit 1
+          fi
+          echo "scalar rejections OK"
+
+      - name: spatial scalars can come from params instead of the sheet
+        env:
+          CI_CAPTURE: ${{ github.workspace }}/ci-capture-scalarparams
+        run: |
+          set -euo pipefail
+          rm -rf SPACERANGER web_summary_htmls summary_metrics filtered_counts "$CI_CAPTURE"
+          export FAKE_TOOL=spaceranger FAKE_VERSION=4.1.0
+
+          # one microscope, so the scale is normally a run wide param rather
+          # than a column repeated on every row. The fluorescence sheet gives
+          # YF1 its own 0.4825 and YF2 none, so this covers the precedence:
+          # a column overrides the param, and the param fills the gaps.
+          nextflow run . -c test/ci.config --mode spatial \
+            --sheet test/sample-sheet-spatial-fluor.csv --ref "$PWD/test/ref" \
+            --imagedir test/visium_images \
+            --srpath "$PWD/test/fake-cellranger" --multiqc false \
+            --imagescale 0.325 --localcores 2 --localmem 4
+
+          grep -qx -- '--image-scale=0.325' "$CI_CAPTURE/YF2.command.txt" \
+            || { cat "$CI_CAPTURE/YF2.command.txt"; echo "--imagescale did not fill the empty cell"; exit 1; }
+          grep -qx -- '--image-scale=0.4825' "$CI_CAPTURE/YF1.command.txt" \
+            || { cat "$CI_CAPTURE/YF1.command.txt"; echo "the column must override the param"; exit 1; }
+          echo "scalar params OK"

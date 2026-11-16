@@ -32,6 +32,8 @@ params.dimReduce        = null
 params.imagedir         = "visium_images"
 params.slide            = null
 params.probeset         = null
+params.imagescale       = null
+params.dapiindex        = null
 params.nosecondary      = false
 params.spatialR1length  = null
 params.spatialR2length  = null
@@ -186,6 +188,24 @@ Args:
         visium_images next to where you launch - so drop the tifs the lab sent
         in there and the sheet only has to name them. A full path works too.
 
+        An image is optional ONCE cytaimage is given, and Visium HD is
+        CytAssist only - so a CytAssist run needs cytaimage, and image /
+        darkimage / colorizedimage only add a higher resolution picture of the
+        section for spaceranger to register against it. Supply as many as were
+        taken; spaceranger's own usage line requires at least one of the four.
+
+        Two optional scalars describe that microscope image rather than the
+        library, so --imagescale / --dapiindex set them for the whole run and
+        the columns override per row:
+
+            imagescale   --image-scale, microns per microscope image PIXEL.
+                         Only give it for a well calibrated microscope: it is
+                         used to improve the CytAssist to microscope image
+                         registration, which is the step that most often needs
+                         a manual alignment when it goes wrong
+            dapiindex    --dapi-index, which channel of a multi channel
+                         fluorescence image is DAPI
+
         Three more optional columns, all files, all resolved the same way:
 
             probeset     --probe-set, for a probe based ( FFPE / CytAssist )
@@ -289,6 +309,12 @@ Args:
                          carries a whole run.
     * --probeset       : spatial only. --probe-set panel csv for every row that
                          does not give its own; default <null>
+    * --imagescale     : spatial only. --image-scale, microns per microscope
+                         image pixel, for every row that does not give its own;
+                         default <null>. Only for a well calibrated microscope -
+                         it improves the CytAssist to microscope registration.
+    * --dapiindex      : spatial only. --dapi-index, which channel of a
+                         fluorescence image is DAPI; default <null>
     * --nosecondary    : spatial only. Skip spaceranger's secondary analysis
                          ( clustering, t-SNE, UMAP ); default <false>
     * --spatialR1length: spatial only. --r1-length; default <null> ( spaceranger
@@ -393,7 +419,8 @@ Args:
       --create-bam=<createBam> \\
       --slide=<slide> --area=<area>   (  or --unknown-slide=<visium-N>  ) \\
       --cytaimage=<tif> [ --image / --darkimage / --colorizedimage ] \\
-      [ --probe-set=<csv> --loupe-alignment=<json> --slidefile=<gpr> \\
+      [ --image-scale=<imagescale> --dapi-index=<dapiindex> \\
+        --probe-set=<csv> --loupe-alignment=<json> --slidefile=<gpr> \\
         --nosecondary --r1-length=<spatialR1length> --r2-length=<spatialR2length> ]
 
 """
@@ -444,6 +471,8 @@ if( params.mode == "spatial" ) {
     log.info """imagedir     : ${params.imagedir}
 slide        : ${params.slide ?: '< from the sheet >'}
 probeset     : ${params.probeset ?: '< none >'}
+imagescale   : ${params.imagescale != null ? params.imagescale : '< from the sheet >'}
+dapiindex    : ${params.dapiindex  != null ? params.dapiindex  : '< from the sheet >'}
 nosecondary  : ${params.nosecondary}
 r1length     : ${params.spatialR1length ?: '< left to spaceranger >'}
 r2length     : ${params.spatialR2length ?: '< left to spaceranger >'}
@@ -900,6 +929,20 @@ def readRowsSpatial() {
                   error "sample-sheet: ${label} has no area. It is the capture area the section sits in: A1, B1, C1 or D1."
               }
 
+              // Microns per microscope image PIXEL, which improves the
+              // CytAssist to microscope registration, and which channel of a
+              // multi channel fluorescence image is DAPI. Both are properties
+              // of the image rather than of the library, so a run wide param
+              // is the usual route and the column is the per row override.
+              def scale = row.imagescale?.trim() ?: ( params.imagescale != null ? "${params.imagescale}" : null )
+              def dapi  = row.dapiindex?.trim()  ?: ( params.dapiindex  != null ? "${params.dapiindex}"  : null )
+
+              if( scale && !( scale ==~ /^[0-9]*\.?[0-9]+$/ ) )
+                  error "sample-sheet: ${label}: imagescale '${scale}' is not a number. It is microns per microscope image pixel, e.g. 0.4825."
+
+              if( dapi && !( dapi ==~ /^\d+$/ ) )
+                  error "sample-sheet: ${label}: dapiindex '${dapi}' is not a whole number. It is which channel of the fluorescence image is DAPI, counted from 1."
+
               def images = [ row.cytaimage?.trim(), row.image?.trim(),
                              row.darkimage?.trim(), row.colorizedimage?.trim() ]
 
@@ -911,7 +954,18 @@ def readRowsSpatial() {
     colorizedimage   a composite colour fluorescence image
     A bare file name is looked up under ${params.imagedir}; a full path works too."""
 
+              // dapiindex names a channel of a fluorescence image, so without
+              // one there is nothing for it to index
+              if( dapi && !images[2] && !images[3] )
+                  error "sample-sheet: ${label}: dapiindex is set but there is no darkimage or colorizedimage. It selects the DAPI channel of a fluorescence image."
+
+              // the scale describes a MICROSCOPE image, and is only used to
+              // register one against the cytassist image
+              if( scale && !images[1] && !images[2] && !images[3] )
+                  log.warn "[spatial] ${label}: imagescale is set but no microscope image (image / darkimage / colorizedimage) is given, so spaceranger has nothing to register with it"
+
               [ label, library, res[0], res[1], slide, area ?: "",
+                scale ?: "", dapi ?: "",
                 spatialFile(images[0], label, "cytaimage"),
                 spatialFile(images[1], label, "image"),
                 spatialFile(images[2], label, "darkimage"),

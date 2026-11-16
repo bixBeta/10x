@@ -21,6 +21,7 @@ fi
 SUBCMD="${1:-}"
 ID="" ; FASTQS="" ; SAMPLES="" ; LIBRARIES="" ; CSV=""
 TRANSCRIPTOME="" ; SLIDE="" ; AREA="" ; UNKNOWN_SLIDE="" ; IMAGES=""
+DARKIMAGE="" ; DAPI_INDEX="" ; IMAGE_SCALE=""
 for a in "$@" ; do
     case "$a" in
         --id=*)         ID="${a#--id=}"               ;;
@@ -35,7 +36,10 @@ for a in "$@" ; do
         # spaceranger takes the image under one of four flags depending on how
         # the section was photographed; the files themselves are checked below
         --cytaimage=*|--image=*|--darkimage=*|--colorizedimage=*)
-            IMAGES="${IMAGES} ${a#*=}" ;;
+            IMAGES="${IMAGES} ${a#*=}"
+            case "$a" in --darkimage=*) DARKIMAGE="${a#*=}" ;; esac ;;
+        --dapi-index=*)   DAPI_INDEX="${a#--dapi-index=}"   ;;
+        --image-scale=*)  IMAGE_SCALE="${a#--image-scale=}" ;;
         --probe-set=*|--loupe-alignment=*|--slidefile=*)
             [ -f "${a#*=}" ] || { echo "fake-cellranger: no such file for ${a%%=*}: ${a#*=}" >&2 ; exit 1 ; } ;;
     esac
@@ -214,6 +218,17 @@ if [ "${FAKE_TOOL:-cellranger}" = "spaceranger" ] ; then
     for img in $IMAGES ; do
         [ -f "$img" ] || { echo "fake-cellranger: image not staged: $img" >&2 ; ls -la >&2 ; exit 1 ; }
     done
+
+    # --dapi-index selects a channel OF a fluorescence image, so it needs one.
+    # Note the test is on emptiness, not truth: index 0 is a real channel.
+    if [ -n "$DAPI_INDEX" ] && [ -z "$DARKIMAGE" ] ; then
+        echo "fake-cellranger: --dapi-index needs --darkimage" >&2 ; exit 1
+    fi
+    if [ -n "$IMAGE_SCALE" ] ; then
+        case "$IMAGE_SCALE" in
+            ''|*[!0-9.]*) echo "fake-cellranger: --image-scale is not a number: $IMAGE_SCALE" >&2 ; exit 1 ;;
+        esac
+    fi
 
     # a wide metrics_summary.csv, like gex and unlike arc / atac, with the
     # probe based column names a CytAssist run reports

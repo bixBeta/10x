@@ -105,6 +105,13 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # probeset:    /path/to/probe_set.csv # default for rows with no probeset column
 # nosecondary: true                   # skip clustering / t-SNE / UMAP
 #
+# These two describe the MICROSCOPE image, not the library. image /
+# darkimage / colorizedimage are optional once cytaimage is given; they add a
+# higher resolution picture of the section, which spaceranger registers against
+# the cytassist image. These help that registration.
+# imagescale:  0.4825                 # --image-scale, microns per image pixel
+# dapiindex:   1                      # --dapi-index, DAPI channel of a darkimage
+#
 # NOT r1length / r2length: a Visium read is not a gex read, so these are their
 # own params and are left out of the command unless set.
 # spatialR1length: 43                 # CytAssist libraries carry a 43 nt R1

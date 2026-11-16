@@ -486,9 +486,27 @@ path works too.
 | `image` | a brightfield H&E image |
 | `darkimage` | a fluorescence image |
 | `colorizedimage` | a composite colour fluorescence image |
+| `imagescale` | `--image-scale`, microns per microscope image **pixel**. Only for a well-calibrated microscope — it improves the CytAssist↔microscope registration |
+| `dapiindex` | `--dapi-index`, which channel of a multi-channel fluorescence image is DAPI |
 | `probeset` | `--probe-set`, for a probe-based (FFPE / CytAssist) assay needing a panel other than the reference's |
 | `alignment` | `--loupe-alignment`, the JSON Loupe Browser exports after a manual fiducial alignment |
 | `slidefile` | `--slidefile`, the slide layout `.gpr`. Space Ranger normally fetches the layout from 10x, so this is what an offline node needs |
+
+Space Ranger's own usage line requires **at least one** of the four, and says
+the other three are *"Optional if `--cytaimage` is specified"*. Visium HD is
+CytAssist-only, so in practice `cytaimage` is the one that matters and a
+microscope image is additive: it gives a higher-resolution picture of the
+section, which Space Ranger registers against the CytAssist image. Supply as
+many as were taken.
+
+That registration is also the step most likely to need a manual Loupe
+alignment when it goes wrong, which is what `imagescale` is for — and why
+adding a microscope image is not entirely free.
+
+`imagescale` and `dapiindex` describe the image rather than the library, so
+`--imagescale` / `--dapiindex` set them run-wide and the columns override per
+row. Prefer the params: `mk-sheet-10x.py` cannot derive either (neither is in a
+filename), so a hand-added column is lost if you regenerate the sheet.
 
 At least one image column is **required** and the sheet is rejected without one,
 along with a slide that has no area, or an image name `--imagedir` does not hold
@@ -682,6 +700,8 @@ Notes for the build host:
 | `--imagedir` | `visium_images` | spatial only; where a bare image name in the sheet is looked up, relative to the launch dir |
 | `--slide` | — | spatial only; slide serial for every row that gives none |
 | `--probeset` | — | spatial only; `--probe-set` panel csv for every row that gives none |
+| `--imagescale` | — | spatial only; `--image-scale`, microns per microscope image pixel, for every row that gives none |
+| `--dapiindex` | — | spatial only; `--dapi-index`, the DAPI channel of a fluorescence image |
 | `--nosecondary` | `false` | spatial only; skip clustering / t-SNE / UMAP |
 | `--spatialR1length` / `--spatialR2length` | — | spatial only; `--r1-length` / `--r2-length`. **Not** `--r1length` — see below |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |

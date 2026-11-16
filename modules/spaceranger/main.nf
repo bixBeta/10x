@@ -31,7 +31,7 @@ process SPACERANGER_COUNT {
 
     input:
         tuple val(library), val(label), val(fastqs), val(samples),
-              val(slide), val(area),
+              val(slide), val(area), val(imagescale), val(dapiindex),
               path(cytaimage), path(image), path(darkimage), path(colorizedimage),
               path(probeset), path(alignment), path(slidefile)
         val ref
@@ -75,6 +75,17 @@ process SPACERANGER_COUNT {
         colorizedimage  ? "--colorizedimage=${colorizedimage}"   : "",
     ].findAll{ it }.join(' ')
 
+    // Scalars that describe the microscope image rather than the library:
+    // --image-scale is microns per image pixel, which spaceranger uses to
+    // register the microscope image against the cytassist one, and
+    // --dapi-index picks the DAPI channel of a fluorescence image.
+    //
+    // An explicit emptiness test, NOT groovy truthiness: a channel index is a
+    // number, and `0 ? a : b` takes the b branch, so a plain ternary would
+    // silently drop --dapi-index=0.
+    def scaleArg    = imagescale?.toString() ? "--image-scale=${imagescale}" : ""
+    def dapiArg     = dapiindex?.toString()  ? "--dapi-index=${dapiindex}"   : ""
+
     def probeArg    = probeset  ? "--probe-set=${probeset}"        : ""
     def alignArg    = alignment ? "--loupe-alignment=${alignment}" : ""
     def slidefileArg = slidefile ? "--slidefile=${slidefile}"      : ""
@@ -114,6 +125,7 @@ process SPACERANGER_COUNT {
         --create-bam=${createBam} \\
         ${slideArg} \\
         ${imageArgs} \\
+        ${scaleArg} ${dapiArg} \\
         ${probeArg} ${alignArg} ${slidefileArg} ${nosecArg} ${r1Arg} ${r2Arg}
 
     # lift outs/ up so publishDir and downstream modules see a stable path
