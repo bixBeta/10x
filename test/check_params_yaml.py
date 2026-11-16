@@ -19,12 +19,32 @@ def defaults():
                 out.setdefault(m.group(1), m.group(2).strip().strip('"'))
     return out
 
+def commented():
+    """The `# name: value` example lines, which yaml.safe_load never sees.
+
+    They are documentation, so a typo in one is invisible: nothing loads them
+    and nothing complains. Checking the NAMES keeps the commented examples as
+    trustworthy as the active settings.
+    """
+    out = []
+    with open("params.yaml") as fh:
+        for line in fh:
+            m = re.match(r"^#\s*(\w+):\s*\S", line)
+            if m:
+                out.append(m.group(1))
+    return out
+
+
 def main():
     declared = defaults()
     with open("params.yaml") as fh:
         given = yaml.safe_load(fh)
 
     problems = []
+    for key in commented():
+        if key not in declared:
+            problems.append(f"{key}: commented out, but not a pipeline param")
+
     for key, value in given.items():
         if key not in declared:
             problems.append(f"{key}: not a pipeline param")
@@ -37,7 +57,8 @@ def main():
             print("  " + p)
         return 1
 
-    print(f"params.yaml OK ({len(given)} params, in step with the defaults)")
+    print(f"params.yaml OK ({len(given)} set, {len(commented())} commented, "
+          f"all in step with the defaults)")
     return 0
 
 if __name__ == "__main__":

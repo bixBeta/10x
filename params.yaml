@@ -75,6 +75,9 @@ r1length:      28                     # set to 0 to omit --r1-length
 #   bash containers/build-sif.sh multiqc 1.35 docker://multiqc/multiqc:v1.35 <sifdir>
 multiqc:       true
 multiqcversion: 1.35
+# multiqcsif:    /path/to/a/specific/multiqc.sif
+# multiqcpath:   /usr/local/bin/multiqc  # a binary instead of an image
+# multiqcconfig: my_multiqc_config.yaml  # replaces assets/multiqc_config.yaml
 
 # ---- aggregation ------------------------------------------------------------
 # Runs for labels carrying several libraries, i.e. separate GEM wells. A label
@@ -125,6 +128,11 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # createBam:   true                   # multi writes create-bam into the config
 #
 # To run a native install instead of an image:
+# Giving a path forces engine local FOR THAT TOOL, since a binary path only
+# makes sense on the host. Each mode uses its own.
 # engine:      local
 # programs:    /programs               # -> /programs/cellranger-<crversion>/cellranger
-# crpath:      /programs/cellranger-9.0.1/cellranger
+# crpath:      /programs/cellranger-9.0.1/cellranger          # gex, multi
+# arcpath:     /programs/cellranger-arc-2.2.0/bin/cellranger-arc   # arc
+# atacpath:    /programs/cellranger-atac-2.2.0/cellranger-atac     # atac
+# srpath:      /programs/spaceranger-4.1.0/spaceranger             # spatial
