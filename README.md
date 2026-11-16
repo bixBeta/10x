@@ -24,7 +24,11 @@
 
 Requires Nextflow >= 24.04, tested against 25.04.1.
 
-## Usage
+**Contents** — [Quick start](#quick-start) · [Sample sheet](#sample-sheet) ·
+[Modes](#modes) · [Outputs](#outputs) · [References](#references) ·
+[10x software](#10x-software) · [Params](#params) · [Development](#development)
+
+## Quick start
 
 Grab [`params.yaml`](params.yaml) next to your sample sheet:
 
@@ -62,138 +66,32 @@ nextflow run bixBeta/10x -r main --help
 nextflow run bixBeta/10x -r main --listRefs
 ```
 
-The run directory gathers the summaries so a whole run can be skimmed at a
-glance:
+## Sample sheet
 
-```
-CELLRANGER/JS4/outs   -> work/../outs        the full cellranger output
-filtered_counts/JS4/  filtered_feature_bc_matrix.h5
-web_summary_htmls/    JS4_web_summary.html   JS5_web_summary.html    ...
-summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv ...
-                      ALL_metrics_summary.csv
-multiqc/              BRC_1234_multiqc_report.html
-pipeline_info/        software_versions.yml
+Most runs need two columns:
+
+```csv
+label,fastqs
+JS4,/local/Illumina/DRV/260***_RX_0***/Unaligned/Project_104***/Sample_SC2620_JS4_G3_***_104***_253***_L2
+JS5,/local/Illumina/DRV/260***_RX_0***/Unaligned/Project_104***/Sample_SC2620_JS5_G3_***_104***_253***_L2
 ```
 
-`ALL_metrics_summary.csv` is every per library table stacked, header kept once,
-with a leading `label` column so each row can be traced back — Cell Ranger's
-own `metrics_summary.csv` carries no sample identifier.
-Multiome and scATAC join the same directories. Both report `summary.csv` rather
-than `metrics_summary.csv`, with their own columns, so each gets its own
-`ALL_summary.csv`; `CELLRANGER_ARC/<label>/` also keeps the generated
-`libraries.csv`, and `CELLRANGER_AGGR/<label>/` the aggregated result.
+**`label`** — your short name for the library. It becomes the output folder and
+Cell Ranger's `--id`.
 
-`--mode spatial` joins them too, under `SPACERANGER/<label>/`. Space Ranger
-reports a wide `metrics_summary.csv` like `gex` does, so its rows stack into
-`ALL_metrics_summary.csv` the same way.
+**`fastqs`** — the 10x delivery directory, used exactly as given. Nothing is
+copied or renamed. Any fastq inside it works too, and resolves to its parent.
 
-`--mode multi` mirrors `outs` the same way under `CELLRANGER_MULTI/<label>/`,
-keeps the generated config beside it, and links the per-sample results out of
-`outs/per_sample_outs/` as `<label>_<sample>_web_summary.html` and
-`<label>_<sample>_metrics_summary.csv` — multi writes one directory per sample,
-which is one for a plain run and several when multiplexed.
+The remaining columns are optional, one per situation:
 
-With `--createBam true` it also gathers every sample's alignments into one
-place:
+| column | add it when |
+|---|---|
+| `library` | one sample was run in two GEM wells |
+| `sample` | the `fastqs` path holds more than one sample |
+| `library_type` | multiome, to mark the GEX and ATAC halves |
+| `slide` / `area` / `cytaimage` … | spatial; see [Visium](#visium---mode-spatial) |
 
-```
-bams/   EW1_SC2622_EW1_SC2622_alignments.bam(.bai)   -> work/../per_sample_outs/.../count/
-        EW2_SC2622_EW2_SC2622_alignments.bam(.bai)
-```
-
-Links, not copies. The per-run `unassigned_alignments.bam` and the VDJ contig
-BAMs are left where Cell Ranger put them, reachable through the `outs` mirror.
-With `createBam` false there is nothing to collect and no `bams/` directory.
-
-For scATAC, `filtered_counts/<label>/` holds what Signac and ArchR actually
-read — the peak matrix, the fragments file with its index, and `singlecell.csv`:
-
-```
-CELLRANGER_ATAC/CK1/outs  -> work/../outs
-filtered_counts/CK1/      filtered_peak_bc_matrix.h5
-                          fragments.tsv.gz  fragments.tsv.gz.tbi
-                          singlecell.csv
-```
-
-### MultiQC
-
-One report per run, in `multiqc/<id>_multiqc_report.html`. MultiQC's
-`cellranger` and `cellranger_arc` modules find runs by matching content inside
-`web_summary.html`, so the summaries the pipeline already collects are the whole
-input — `metrics_summary.csv` is not one of its search patterns.
-
-The **Software Versions** table at the end of the report is the pipeline's own,
-not MultiQC's. `disable_version_detection` is set in
-[`assets/multiqc_config.yaml`](assets/multiqc_config.yaml), and `DUMP_VERSIONS`
-writes `software_versions_mqc.yml` from the `versions.yml` every process emits,
-so the table reports what the tools themselves said. `report_section_order`
-pins it last. MultiQC's own version is not in that table — it cannot be, since
-the table is an input to the report.
-
-For multiome, MultiQC's own `cellranger_arc` module cannot parse Cell Ranger
-ARC 2.2 web summaries ([MultiQC #3609](https://github.com/MultiQC/MultiQC/issues/3609),
-open), so the pipeline renders the metrics itself from `summary.csv` as three
-sections — **library**, **ATAC** and **GEX** — with the headline metrics visible
-and the long tail behind *Configure columns*. Splitting by assay rather than
-using MultiQC's column `namespace` is deliberate: a namespace only shows in
-tooltips, which left ATAC and GEX columns of the same name indistinguishable.
-The module is left enabled so its richer section returns the day upstream
-fixes it.
-
-For scATAC there is no `cellranger_atac` module in MultiQC at all, so the
-pipeline parses the web summary itself. A Cell Ranger web summary carries the
-whole report as one JSON blob on a `const data = {...}` line — tables, plot
-traces and axis labels — which is how MultiQC's own `cellranger` module reads
-the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
-
-| section | from | how |
-|---|---|---|
-| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own metric tables | MultiQC tables |
-| Barcode Rank · Fragment Distribution · TSS Enrichment · Insert Size · Assay Efficiency | the report's own plots | Cell Ranger's Plotly figure, embedded |
-
-Those tables are richer than `ALL_summary.csv` — the mapping one carries the
-nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
-The CSV-derived table is kept alongside them.
-
-The plots are **not redrawn**. Each one in a web summary is already a Plotly
-figure (`data` + `layout`), and MultiQC bundles Plotly, so the figure is handed
-to `Plotly.newPlot` as Cell Ranger built it — same axes, same log scales, same
-styling. Only three things change: each trace is prefixed with its library, a
-library gets one colour across every plot (dashes separate traces within it),
-and the per-library subtitle is dropped since several are now overlaid.
-
-Rebuilding them as MultiQC line graphs was tried first and looked wrong: the
-styling is lost, and these profiles are noisy at 1 bp — which the web summary
-hides by drawing into a small panel, and which reads as a hairy band at report
-width. Passing the figure through avoids the question entirely.
-
-This adds roughly 0.5–1.5 MB to the report, mostly the barcode-rank traces.
-The tSNE cluster scatters are deliberately skipped: a per-library 2D embedding
-is not comparable across libraries.
-
-The web summaries themselves are published for a human to open but deliberately
-not handed to MultiQC — nothing would parse them, and the `cellranger_arc`
-module trying and failing would take the whole report down.
-
-For `--mode multi` the per-sample web summaries are passed to MultiQC as they
-are. MultiQC's `cellranger` module matches on `"subcommand":"count"`, so a
-`multi` summary is not parsed by it today and the report carries the Software
-Versions section rather than per-sample tables. The same web-summary parsing
-used for scATAC would fix that; it is not wired up yet.
-
-`--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
-`--multiqcversion` selects the image.
-
-`CELLRANGER/<label>/outs` is a single symlink to the task's real `outs`, so
-everything Cell Ranger wrote — matrices, `molecule_info.h5`, `analysis/`, the
-BAM if asked for — is reachable from the run directory without copying
-anything. Multiome and aggregation mirror theirs the same way under
-`CELLRANGER_ARC/<label>/` and `CELLRANGER_AGGR/<label>/`.
-
-Everything published is a link into `work/`, so keep `work/` until you are
-done, or dereference when archiving (`cp -rL`, `rsync -L`, `tar -h`).
-
-## Building the sheet
+### Generating it from the delivery
 
 `scripts/mk-sheet-10x.py` writes one for you from the delivery. It derives what
 the naming convention supports and leaves everything else **empty with a note**,
@@ -235,31 +133,6 @@ wrong reads together, so that wants its own pass. Adding a mode means a
 subclass with its column names and a `fill()`; the discovery, labelling and
 reporting are shared. See the docstring.
 
-## Sample sheet
-
-Most runs need two columns:
-
-```csv
-label,fastqs
-JS4,/local/Illumina/DRV/260***_RX_0***/Unaligned/Project_104***/Sample_SC2620_JS4_G3_***_104***_253***_L2
-JS5,/local/Illumina/DRV/260***_RX_0***/Unaligned/Project_104***/Sample_SC2620_JS5_G3_***_104***_253***_L2
-```
-
-**`label`** — your short name for the library. It becomes the output folder and
-Cell Ranger's `--id`.
-
-**`fastqs`** — the 10x delivery directory, used exactly as given. Nothing is
-copied or renamed. Any fastq inside it works too, and resolves to its parent.
-
-The remaining columns are optional, one per situation:
-
-| column | add it when |
-|---|---|
-| `library` | one sample was run in two GEM wells |
-| `sample` | the `fastqs` path holds more than one sample |
-| `library_type` | multiome, to mark the GEX and ATAC halves |
-| `slide` / `area` / `cytaimage` … | spatial; see [Visium](#visium---mode-spatial) |
-
 ### The same library sequenced twice
 
 Repeat the label. Both runs are pooled into one count.
@@ -297,6 +170,22 @@ means. Without it the run stops rather than guessing.
 label,fastqs,sample
 JS4,/local/.../Project_104***,SC2620_JS4_G3_***_104***_253***
 ```
+
+## Modes
+
+`--mode` picks the tool and, with it, which sheet columns mean anything. The
+sheet rules above hold in every mode; each section below covers only what its
+mode adds.
+
+### Gene expression (`--mode gex`)
+
+`gex` is the default and needs nothing but the two columns above: one row per
+library, `cellranger count` per label. Everything in [Sample sheet](#sample-sheet)
+applies as written.
+
+A label carrying several libraries — separate GEM wells — is counted per library
+and then combined with `cellranger aggr`; see
+[Two GEM wells from one sample](#two-gem-wells-from-one-sample).
 
 ### Multiome (`--mode arc`)
 
@@ -462,7 +351,7 @@ nextflow run bixBeta/10x -r main --mode spatial --ref Canine \
 ```
 
 `scripts/mk-sheet-10x.py` derives the label, the area, the slide serial and the
-CytAssist image from the delivery — see [Building the sheet](#building-the-sheet).
+CytAssist image from the delivery — see [Generating it from the delivery](#generating-it-from-the-delivery).
 
 **Images live in one folder.** A bare file name in the sheet is looked up under
 `--imagedir`, which defaults to `visium_images` next to where you launch — so
@@ -517,15 +406,10 @@ If the slide serial was lost, put one of Space Ranger's keywords in `slide`
 instead — `visium-1`, `visium-2`, `visium-2-large` — and leave `area` out. That
 becomes `--unknown-slide`, which is mutually exclusive with `--slide` / `--area`.
 
-A capture area sequenced over several lanes or runs: **repeat the label**, exactly
-as in `gex` mode. Spatial deliveries often arrive one directory per lane, which
-is what that looks like:
-
-```csv
-label,fastqs,area,cytaimage
-YF1,/local/.../Sample_SC2630_YF1_V-G3_A1_104***_23N***_L1,A1,..._A1_yf1.tif
-YF1,/local/.../Sample_SC2630_YF1_V-G3_A1_104***_23N***_L2,A1,..._A1_yf1.tif
-```
+A capture area sequenced over several lanes or runs: **repeat the label**, as in
+[The same library sequenced twice](#the-same-library-sequenced-twice). Spatial
+deliveries often arrive one directory per lane, so this is the common case, not
+the exception — eight rows per capture area.
 
 The `slide`, `area` and image columns must **match** on every row of a label —
 they describe one physical section — and a label whose rows disagree is rejected
@@ -558,6 +442,150 @@ human to open but deliberately not handed over; the pipeline renders the metrics
 itself as the **Space Ranger (Visium)** section, the same arrangement scATAC
 uses. The knee plots and spatial figures are not lifted out of the web summary
 yet — the treatment `modules/websummary` gives scATAC would work here too.
+
+## Outputs
+
+The run directory gathers the summaries so a whole run can be skimmed at a
+glance:
+
+```
+CELLRANGER/JS4/outs   -> work/../outs        the full cellranger output
+filtered_counts/JS4/  filtered_feature_bc_matrix.h5
+web_summary_htmls/    JS4_web_summary.html   JS5_web_summary.html    ...
+summary_metrics/      JS4_metrics_summary.csv  JS5_metrics_summary.csv ...
+                      ALL_metrics_summary.csv
+multiqc/              BRC_1234_multiqc_report.html
+pipeline_info/        software_versions.yml
+```
+
+`ALL_metrics_summary.csv` is every per library table stacked, header kept once,
+with a leading `label` column so each row can be traced back — Cell Ranger's
+own `metrics_summary.csv` carries no sample identifier.
+
+Each mode adds to the same directories rather than inventing its own layout:
+
+| mode | `outs` mirror | per-library collection | combined table |
+|---|---|---|---|
+| `gex` | `CELLRANGER/<label>/` | `filtered_counts/<label>/` — the matrix | `ALL_metrics_summary.csv` |
+| `arc` | `CELLRANGER_ARC/<label>/` — plus the generated `libraries.csv` | the matrix | `ALL_summary.csv` |
+| `atac` | `CELLRANGER_ATAC/<label>/` | peak matrix, fragments + index, `singlecell.csv` | `ALL_summary.csv` |
+| `multi` | `CELLRANGER_MULTI/<label>/` — plus the generated config | per-sample results, and `bams/` with `--createBam true` | `ALL_metrics_summary.csv` |
+| `spatial` | `SPACERANGER/<label>/` | the matrix **with** `spatial/`, `cloupe`, and `binned_outputs/` for HD | `ALL_metrics_summary.csv` |
+| — | `CELLRANGER_AGGR/<label>/` | the aggregated result | — |
+
+`arc` and `atac` report `summary.csv` rather than `metrics_summary.csv`, with
+their own columns, so those stack into `ALL_summary.csv` instead. `multi` writes
+one directory per sample — one for a plain run, several when multiplexed — so
+its per-sample results are linked out of `outs/per_sample_outs/` as
+`<label>_<sample>_web_summary.html` and `<label>_<sample>_metrics_summary.csv`.
+
+With `--createBam true`, `multi` also gathers every sample's alignments into one
+place:
+
+```
+bams/   EW1_SC2622_EW1_SC2622_alignments.bam(.bai)   -> work/../per_sample_outs/.../count/
+        EW2_SC2622_EW2_SC2622_alignments.bam(.bai)
+```
+
+Links, not copies. The per-run `unassigned_alignments.bam` and the VDJ contig
+BAMs are left where Cell Ranger put them, reachable through the `outs` mirror.
+With `createBam` false there is nothing to collect and no `bams/` directory.
+
+For scATAC, `filtered_counts/<label>/` holds what Signac and ArchR actually
+read — the peak matrix, the fragments file with its index, and `singlecell.csv`:
+
+```
+CELLRANGER_ATAC/CK1/outs  -> work/../outs
+filtered_counts/CK1/      filtered_peak_bc_matrix.h5
+                          fragments.tsv.gz  fragments.tsv.gz.tbi
+                          singlecell.csv
+```
+
+
+
+`CELLRANGER/<label>/outs` is a single symlink to the task's real `outs`, so
+everything Cell Ranger wrote — matrices, `molecule_info.h5`, `analysis/`, the
+BAM if asked for — is reachable from the run directory without copying
+anything. Multiome and aggregation mirror theirs the same way under
+`CELLRANGER_ARC/<label>/` and `CELLRANGER_AGGR/<label>/`.
+
+Everything published is a link into `work/`, so keep `work/` until you are
+done, or dereference when archiving (`cp -rL`, `rsync -L`, `tar -h`).
+
+### MultiQC
+
+One report per run, in `multiqc/<id>_multiqc_report.html`. MultiQC's
+`cellranger` and `cellranger_arc` modules find runs by matching content inside
+`web_summary.html`, so the summaries the pipeline already collects are the whole
+input — `metrics_summary.csv` is not one of its search patterns.
+
+The **Software Versions** table at the end of the report is the pipeline's own,
+not MultiQC's. `disable_version_detection` is set in
+[`assets/multiqc_config.yaml`](assets/multiqc_config.yaml), and `DUMP_VERSIONS`
+writes `software_versions_mqc.yml` from the `versions.yml` every process emits,
+so the table reports what the tools themselves said. `report_section_order`
+pins it last. MultiQC's own version is not in that table — it cannot be, since
+the table is an input to the report.
+
+`--multiqc false` skips the report, `--multiqcconfig` swaps the config, and
+`--multiqcversion` selects the image.
+
+<details>
+<summary>Why the pipeline renders some sections itself</summary>
+
+
+For multiome, MultiQC's own `cellranger_arc` module cannot parse Cell Ranger
+ARC 2.2 web summaries ([MultiQC #3609](https://github.com/MultiQC/MultiQC/issues/3609),
+open), so the pipeline renders the metrics itself from `summary.csv` as three
+sections — **library**, **ATAC** and **GEX** — with the headline metrics visible
+and the long tail behind *Configure columns*. Splitting by assay rather than
+using MultiQC's column `namespace` is deliberate: a namespace only shows in
+tooltips, which left ATAC and GEX columns of the same name indistinguishable.
+The module is left enabled so its richer section returns the day upstream
+fixes it.
+
+For scATAC there is no `cellranger_atac` module in MultiQC at all, so the
+pipeline parses the web summary itself. A Cell Ranger web summary carries the
+whole report as one JSON blob on a `const data = {...}` line — tables, plot
+traces and axis labels — which is how MultiQC's own `cellranger` module reads
+the gex one. [`modules/websummary`](modules/websummary/main.nf) lifts out:
+
+| section | from | how |
+|---|---|---|
+| Sequencing / Cells / Mapping / Targeting / Complexity | the report's own metric tables | MultiQC tables |
+| Barcode Rank · Fragment Distribution · TSS Enrichment · Insert Size · Assay Efficiency | the report's own plots | Cell Ranger's Plotly figure, embedded |
+
+Those tables are richer than `ALL_summary.csv` — the mapping one carries the
+nucleosome-free and mononucleosome fractions, which the CSV omits entirely.
+The CSV-derived table is kept alongside them.
+
+The plots are **not redrawn**. Each one in a web summary is already a Plotly
+figure (`data` + `layout`), and MultiQC bundles Plotly, so the figure is handed
+to `Plotly.newPlot` as Cell Ranger built it — same axes, same log scales, same
+styling. Only three things change: each trace is prefixed with its library, a
+library gets one colour across every plot (dashes separate traces within it),
+and the per-library subtitle is dropped since several are now overlaid.
+
+Rebuilding them as MultiQC line graphs was tried first and looked wrong: the
+styling is lost, and these profiles are noisy at 1 bp — which the web summary
+hides by drawing into a small panel, and which reads as a hairy band at report
+width. Passing the figure through avoids the question entirely.
+
+This adds roughly 0.5–1.5 MB to the report, mostly the barcode-rank traces.
+The tSNE cluster scatters are deliberately skipped: a per-library 2D embedding
+is not comparable across libraries.
+
+The web summaries themselves are published for a human to open but deliberately
+not handed to MultiQC — nothing would parse them, and the `cellranger_arc`
+module trying and failing would take the whole report down.
+
+For `--mode multi` the per-sample web summaries are passed to MultiQC as they
+are. MultiQC's `cellranger` module matches on `"subcommand":"count"`, so a
+`multi` summary is not parsed by it today and the report carries the Software
+Versions section rather than per-sample tables. The same web-summary parsing
+used for scATAC would fix that; it is not wired up yet.
+
+</details>
 
 ## References
 
@@ -616,7 +644,7 @@ bash containers/build-sif.sh spaceranger 4.1.0 spaceranger-4.1.0.tar.gz /local/w
 ```
 
 `--mode atac` wants `cellranger-atac-<atacversion>.sif`, which has to be built
-first — see below.
+first — see [Building an image](#building-an-image).
 
 `--crsif` / `--arcsif` / `--atacsif` / `--srsif` name an image directly.
 `--crpath` / `--arcpath` / `--atacpath` / `--srpath` name a binary and force
@@ -628,7 +656,8 @@ is actually present.
 
 Results are not comparable across Cell Ranger majors, so a project started on
 one version stays on it — `crversion` in `params.yaml` is the only thing to
-change, and the guard below catches a mismatch before any counting.
+change, and [the version guard](#which-version-am-i-really-running) catches a
+mismatch before any counting.
 
 ### Which version am I really running?
 
@@ -643,7 +672,7 @@ ERROR: asked for cellranger 9.0.1 but cellranger reports 7.0.0
 This applies to `--engine local` too. The version actually reported is recorded
 in `pipeline_info/software_versions.yml`.
 
-## Building an image
+### Building an image
 
 `containers/build-sif.sh` builds on the machine that will run it. Nothing is
 pushed anywhere.
@@ -703,7 +732,7 @@ Notes for the build host:
 | `--imagescale` | — | spatial only; `--image-scale`, microns per microscope image pixel, for every row that gives none |
 | `--dapiindex` | — | spatial only; `--dapi-index`, the DAPI channel of a fluorescence image |
 | `--nosecondary` | `false` | spatial only; skip clustering / t-SNE / UMAP |
-| `--spatialR1length` / `--spatialR2length` | — | spatial only; `--r1-length` / `--r2-length`. **Not** `--r1length` — see below |
+| `--spatialR1length` / `--spatialR2length` | — | spatial only; `--r1-length` / `--r2-length`. **Not** `--r1length` — see [Visium](#visium---mode-spatial) |
 | `--localcores` | `32` | `--localcores` **and** the CPUs reserved |
 | `--localmem` | `128` | `--localmem` in GB **and** the memory reserved |
 | `--maxforks` | `1` | concurrent tasks **per process** |
@@ -715,7 +744,7 @@ Notes for the build host:
 | `--multiqcversion` | `1.35` | selects `<sifdir>/multiqc-<v>.sif` |
 | `--multiqcsif` / `--multiqcpath` | — | a specific image, or a binary |
 | `--multiqcconfig` | shipped | a custom MultiQC config |
-| `--sifdir` | see above | where the `.sif` files live |
+| `--sifdir` | `/local/workdir/10x_analysis/singularity-sifs` | where the `.sif` files live |
 | `--crsif` / `--arcsif` / `--atacsif` / `--srsif` | — | a specific image |
 | `--programs` | `/programs` | where native installs live |
 | `--crpath` / `--arcpath` / `--atacpath` / `--srpath` | — | a specific binary; forces `--engine local` |
