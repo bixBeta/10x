@@ -727,6 +727,32 @@ jobs:
             --sheet test/sample-sheet.csv --ref test/ref
           echo "params.yaml OK"
 
+      - name: chmod opens the run directory when asked
+        run: |
+          set -euo pipefail
+          # launched from a subdirectory, so what is under test is that
+          # directory's mode and not the checkout's
+          for mode in none 777 ; do
+            d="ci-chmod-$mode"
+            rm -rf "$d" ; mkdir "$d" ; chmod 700 "$d"
+            flag=""
+            want=700
+            if [ "$mode" != none ] ; then flag="--chmod $mode" ; want=777 ; fi
+            ( cd "$d" && nextflow run "$GITHUB_WORKSPACE" -stub-run \
+                -c "$GITHUB_WORKSPACE/test/ci.config" \
+                --sheet "$GITHUB_WORKSPACE/test/sample-sheet.csv" \
+                --ref "$GITHUB_WORKSPACE/test/ref" $flag )
+            got=$( stat -c '%a' "$d" )
+            test "$got" = "$want" || { echo "--chmod $mode left the launch dir $got, wanted $want" ; exit 1 ; }
+            # publishDir mode is symlink, so work/ is what has to open up for
+            # the published trees to resolve for anyone else
+            if [ "$mode" != none ] ; then
+              test "$( stat -c '%a' "$d/work" )" = 777 || { echo "work/ was left closed" ; exit 1 ; }
+            fi
+            rm -rf "$d"
+          done
+          echo "chmod OK"
+
       - name: params from a yaml file
         env:
           CI_CAPTURE: ${{ github.workspace }}/ci-capture-yaml

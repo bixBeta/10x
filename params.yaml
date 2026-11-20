@@ -136,3 +136,10 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # arcpath:     /programs/cellranger-arc-2.2.0/bin/cellranger-arc   # arc
 # atacpath:    /programs/cellranger-atac-2.2.0/cellranger-atac     # atac
 # srpath:      /programs/spaceranger-4.1.0/spaceranger             # spatial
+#
+# Hand the finished run over to someone else. Applied to the whole launch
+# directory, work/ included, once the run finishes - on failure too, since a
+# failed run's work/ is often what another person needs to read. With -w
+# elsewhere, work/ sits outside the launch directory and is left alone.
+# chmod:       "777"                   # anyone on the machine can read, write, delete
+# chmod:       a+rX                    # anyone can read; nobody else can change it

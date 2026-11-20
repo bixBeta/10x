@@ -388,6 +388,10 @@ Args:
     * --localmem       : cellranger --localmem in GB, also the memory reserved; default <128>
     * --maxforks       : concurrent tasks PER PROCESS, so 2 would run 2 cellranger
                          jobs at once, each taking localcores / localmem; default <1>
+    * --chmod          : chmod the whole run directory, work/ included, once the run
+                         finishes - on failure too. For handing results to someone
+                         else: '777' to let anyone read, write and delete, 'a+rX' to
+                         let them read only. Off by default.
 
   The command this builds, gex mode, one per library:
 
