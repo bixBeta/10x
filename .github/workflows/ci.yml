@@ -722,9 +722,21 @@ jobs:
         run: |
           python3 -m pip install --quiet pyyaml
           python3 test/check_params_yaml.py
-          # and it is actually usable, with the run specific bits overridden
+          # and it is actually usable, with the run specific bits overridden.
+          # params.yaml ships chmod 777, which would open up the whole runner
+          # checkout, so this doubles as the test that --chmod false wins - and
+          # that it is not passed to chmod as a literal mode, which it would be
+          # on a plain groovy truthiness test, every non empty string being true
           nextflow run . -stub-run -c test/ci.config -params-file params.yaml \
-            --sheet test/sample-sheet.csv --ref test/ref
+            --sheet test/sample-sheet.csv --ref test/ref --chmod false > yaml.log 2>&1 \
+            || { cat yaml.log ; exit 1 ; }
+          if grep -q "chmod -R" yaml.log ; then
+            echo "--chmod false still ran a chmod" ; cat yaml.log ; exit 1
+          fi
+          if grep -qi "invalid mode\|did not finish cleanly" yaml.log ; then
+            echo "chmod was handed the word false as a mode" ; cat yaml.log ; exit 1
+          fi
+          rm -f yaml.log
           echo "params.yaml OK"
 
       - name: chmod opens the run directory when asked
@@ -751,6 +763,18 @@ jobs:
             fi
             rm -rf "$d"
           done
+          # and the 777 that params.yaml ships reaches a run through
+          # -params-file, with no --chmod on the command line at all
+          d=ci-chmod-yaml
+          rm -rf "$d" ; mkdir "$d" ; chmod 700 "$d"
+          ( cd "$d" && nextflow run "$GITHUB_WORKSPACE" -stub-run \
+              -c "$GITHUB_WORKSPACE/test/ci.config" \
+              -params-file "$GITHUB_WORKSPACE/params.yaml" \
+              --sheet "$GITHUB_WORKSPACE/test/sample-sheet.csv" \
+              --ref "$GITHUB_WORKSPACE/test/ref" )
+          got=$( stat -c '%a' "$d" )
+          test "$got" = 777 || { echo "params.yaml left the launch dir $got" ; exit 1 ; }
+          rm -rf "$d"
           echo "chmod OK"
 
       - name: params from a yaml file

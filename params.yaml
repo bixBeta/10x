@@ -85,6 +85,19 @@ multiqcversion: 1.35
 aggr:          true
 normalize:     mapped                 # mapped subsamples to the shallowest, or none
 
+# ---- handing the results over -----------------------------------------------
+# chmod applied to the launch directory ITSELF and everything below it, work/
+# included, once the run finishes - on failure too. Run from SC1001 and SC1001
+# ends up 777, so the rest of the lab can read the results without chasing
+# permissions. Unlike everything else in this file, this is deliberately NOT
+# the pipeline default - leave the file out, or pass --chmod false, and
+# permissions are left alone. Use a+rX rather than 777 to let people read
+# without being able to change anything. The launch directory's PARENT is
+# never touched, and nobody can reach a 777 directory they cannot traverse
+# into.
+chmod:         "777"
+# chmod:       a+rX                   # readable by all, writable by you only
+
 # ---- occasionally useful, uncomment to use ----------------------------------
 # expectCells: 8000                   # cellranger estimates by default
 # forceCells:  5000
@@ -136,10 +149,3 @@ normalize:     mapped                 # mapped subsamples to the shallowest, or 
 # arcpath:     /programs/cellranger-arc-2.2.0/bin/cellranger-arc   # arc
 # atacpath:    /programs/cellranger-atac-2.2.0/cellranger-atac     # atac
 # srpath:      /programs/spaceranger-4.1.0/spaceranger             # spatial
-#
-# Hand the finished run over to someone else. Applied to the whole launch
-# directory, work/ included, once the run finishes - on failure too, since a
-# failed run's work/ is often what another person needs to read. With -w
-# elsewhere, work/ sits outside the launch directory and is left alone.
-# chmod:       "777"                   # anyone on the machine can read, write, delete
-# chmod:       a+rX                    # anyone can read; nobody else can change it

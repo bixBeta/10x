@@ -9,7 +9,12 @@ import sys
 
 import yaml
 
-EXEMPT = {"ref"}
+# ref has no default and must be set. chmod is the one setting in params.yaml
+# that is deliberately NOT the pipeline default: the default is off, because
+# loosening permissions on a directory is not something to do to someone who
+# did not ask, but anyone reaching for params.yaml is running the house
+# configuration and wants the results readable by the rest of the lab.
+EXEMPT = {"ref", "chmod"}
 
 def defaults():
     out = {}

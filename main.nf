@@ -393,9 +393,11 @@ Args:
                          running this from SC1001 leaves SC1001 with the mode as
                          well. For handing results to someone else: '777' to let
                          anyone read, write and delete, 'a+rX' to let them read
-                         only. Off by default. The launch directory's PARENT is not
-                         touched, and a 777 directory is no use to someone who
-                         cannot traverse into it.
+                         only. Off by default on the command line, but params.yaml
+                         ships it as 777 - pass --chmod false to switch it back
+                         off. The launch directory's PARENT is not touched, and a
+                         777 directory is no use to someone who cannot traverse
+                         into it.
 
   The command this builds, gex mode, one per library:
 
